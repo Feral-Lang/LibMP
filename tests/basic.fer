@@ -1,0 +1,97 @@
+let mp = import('mp/mp');
+let assert = import('std/assert');
+
+# some shorthands
+let i = mp.newInt;
+let f = mp.newFlt;
+
+## integer
+
+# logical
+assert.lt(i(1), i(2));
+assert.gt(i(1), i(0));
+assert.le(i(1), i(1));
+assert.ge(i(1), i(1));
+assert.eq(i(1), i(1));
+assert.ne(i(1), i(2));
+
+# arithmetic
+assert.eq(i(4) << i(1), i(8));
+assert.eq(i(4) >> i(1), i(2));
+assert.eq(i(5) + i(1), i(6));
+assert.eq(i(5) - i(1), i(4));
+assert.eq(i(5) * i(2), i(10));
+assert.eq(i(5) / i(2), i(2));
+assert.eq(i(5) % i(2), i(1));
+
+let a = i(4), b = i(2);
+assert.eq((a <<= b), i(16));
+assert.eq((a >>= b), i(4));
+assert.eq((a += b), i(6));
+assert.eq((a -= b), i(4));
+assert.eq((a *= b), i(8));
+assert.eq((a /= b), i(4));
+assert.eq((a %= b), i(0));
+
+# others
+assert.eq(i(4) ** i(3), i(64));
+assert.eq(i(64) // i(3), i(4));
+assert.eq(++i(4), i(5));
+assert.eq(i(4)++, i(4));
+assert.eq(--i(4), i(3));
+assert.eq(i(4)--, i(4));
+
+assert.ne(-i(5), -(-i(5)));
+
+# bitwise
+assert.eq((i(5) & i(2)), i(0));
+assert.eq((i(5) & i(4)), i(4));
+assert.eq((i(5) | i(2)), i(7));
+assert.eq((i(5) | i(4)), i(5));
+assert.eq((i(5) ^ i(2)), i(7));
+assert.eq((i(5) ^ i(4)), i(1));
+assert.eq(~i(5), -i(6));
+assert.eq(~i(0), -i(1));
+
+assert.eq(((a = i(5)) &= b), i(0));
+assert.eq(((a = i(5)) |= b), i(7));
+assert.eq(((a = i(5)) ^= b), i(7));
+
+assert.eq(i(5).popcnt(), i(2));
+assert.eq(i(0).popcnt(), i(0));
+
+## float
+
+# logical
+assert.lt(f(0.1), f(1.0));
+assert.gt(f(0.1), f(0.01));
+assert.le(f(0.1), f(0.1));
+assert.ge(f(0.1), f(0.1));
+assert.eq(f(0.1), f(0.1));
+assert.ne(f(0.1), f(0.01));
+
+# arithmetic
+assert.eq(f(5.0) + f(0.1), f(5.1));
+assert.eq(f(5.2) - f(0.2), f(5.0));
+assert.eq(f(5.2) * f(2.0), f(10.4));
+assert.eq(f(5.2) / f(2.0), f(2.6));
+
+let a = f(5.0), b = f(2.0);
+assert.eq((a += b), f(7.0));
+assert.eq((a -= b), f(5.0));
+assert.eq((a *= b), f(10.0));
+assert.eq((a /= b), f(5.0));
+
+# others
+assert.eq(++f(4.0), f(5.0));
+assert.eq(f(4.0)++, f(4.0));
+assert.eq(--f(4.0), f(3.0));
+assert.eq(f(4.0)--, f(4.0));
+
+assert.eq(f(2.5) ** i(2), f(6.25));
+assert.eq(f(6.25) // i(2), f(2.5));
+
+assert.ne(f(-5.0), -(f(-5.0)));
+
+assert.eq((f(5.2)).round(), i(5));
+assert.eq(f(5.5).round(), i(6));
