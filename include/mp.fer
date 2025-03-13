@@ -1,0 +1,26 @@
+loadlib('mp/MP');
+
+let time = import('std/time');
+
+let newInt = fn(num = 0) {
+	return newIntNative(num);
+};
+let newFlt = fn(num = 0.0) {
+	return newFltNative(num);
+};
+let newComplex = fn(real = 0.0, imag = 0.0) {
+	return newComplexNative(real, imag);
+};
+
+seed(newInt(time.now().int()));
+
+let getRandomInt = fn(from, to) {
+	if from > to { raise('LHS should be less or equal to RHS for random number generation'); }
+	let res = getRandomIntNative(to - from + newInt(1)); # [0, to - from]
+	return res + from;
+};
+let getRandomFlt = fn(from, to) {
+	if from > to { raise('LHS should be less or equal to RHS for random number generation'); }
+	let res = getRandomFltNative(to - from); # [0, to - from]
+	return res + from;
+};
