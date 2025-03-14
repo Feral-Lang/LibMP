@@ -1,7 +1,5 @@
 #include "MP.hpp"
 
-#include <mpc.h>
-
 namespace fer
 {
 
