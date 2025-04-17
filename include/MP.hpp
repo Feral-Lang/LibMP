@@ -18,8 +18,8 @@ class VarMPInt : public Var
 {
 	mpz_t val;
 
-	Var *onCopy(Interpreter &vm, ModuleLoc loc) override;
-	void onSet(Interpreter &vm, Var *from) override;
+	Var *onCopy(MemoryManager &mem, ModuleLoc loc) override;
+	void onSet(MemoryManager &mem, Var *from) override;
 
 public:
 	VarMPInt(ModuleLoc loc, int64_t _val);
@@ -41,8 +41,8 @@ class VarMPFlt : public Var
 {
 	mpfr_t val;
 
-	Var *onCopy(Interpreter &vm, ModuleLoc loc) override;
-	void onSet(Interpreter &vm, Var *from) override;
+	Var *onCopy(MemoryManager &mem, ModuleLoc loc) override;
+	void onSet(MemoryManager &mem, Var *from) override;
 
 public:
 	VarMPFlt(ModuleLoc loc, long double _val);
@@ -64,8 +64,8 @@ class VarMPComplex : public Var
 {
 	mpc_t val;
 
-	Var *onCopy(Interpreter &vm, ModuleLoc loc) override;
-	void onSet(Interpreter &vm, Var *from) override;
+	Var *onCopy(MemoryManager &mem, ModuleLoc loc) override;
+	void onSet(MemoryManager &mem, Var *from) override;
 
 public:
 	VarMPComplex(ModuleLoc loc);
