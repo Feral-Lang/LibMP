@@ -27,11 +27,11 @@ VarMPInt::VarMPInt(ModuleLoc loc, const char *_val) : Var(loc, false, false)
 	mpz_init_set_str(val, _val, 0);
 }
 VarMPInt::~VarMPInt() { mpz_clear(val); }
-Var *VarMPInt::onCopy(Interpreter &vm, ModuleLoc loc)
+Var *VarMPInt::onCopy(MemoryManager &mem, ModuleLoc loc)
 {
-	return vm.makeVarWithRef<VarMPInt>(loc, val);
+	return Var::makeVarWithRef<VarMPInt>(mem, loc, val);
 }
-void VarMPInt::onSet(Interpreter &vm, Var *from) { mpz_set(val, as<VarMPInt>(from)->getPtr()); }
+void VarMPInt::onSet(MemoryManager &mem, Var *from) { mpz_set(val, as<VarMPInt>(from)->getPtr()); }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////// VarMPFlt /////////////////////////////////////////////
@@ -54,11 +54,11 @@ VarMPFlt::VarMPFlt(ModuleLoc loc, const char *_val) : Var(loc, false, false)
 	mpfr_init_set_str(val, _val, 0, mpfr_get_default_rounding_mode());
 }
 VarMPFlt::~VarMPFlt() { mpfr_clear(val); }
-Var *VarMPFlt::onCopy(Interpreter &vm, ModuleLoc loc)
+Var *VarMPFlt::onCopy(MemoryManager &mem, ModuleLoc loc)
 {
-	return vm.makeVarWithRef<VarMPFlt>(loc, val);
+	return Var::makeVarWithRef<VarMPFlt>(mem, loc, val);
 }
-void VarMPFlt::onSet(Interpreter &vm, Var *from)
+void VarMPFlt::onSet(MemoryManager &mem, Var *from)
 {
 	mpfr_set(val, as<VarMPFlt>(from)->getPtr(), mpfr_get_default_rounding_mode());
 }
@@ -104,11 +104,11 @@ VarMPComplex::~VarMPComplex() { mpc_clear(val); }
 
 void VarMPComplex::initBase() { mpc_init2(val, 256); }
 
-Var *VarMPComplex::onCopy(Interpreter &vm, ModuleLoc loc)
+Var *VarMPComplex::onCopy(MemoryManager &mem, ModuleLoc loc)
 {
-	return vm.makeVarWithRef<VarMPComplex>(loc, val);
+	return Var::makeVarWithRef<VarMPComplex>(mem, loc, val);
 }
-void VarMPComplex::onSet(Interpreter &vm, Var *from)
+void VarMPComplex::onSet(MemoryManager &mem, Var *from)
 {
 	mpc_set(val, as<VarMPComplex>(from)->getPtr(), mpc_get_default_rounding_mode());
 }
@@ -119,7 +119,7 @@ mpc_rnd_t mpc_get_default_rounding_mode() { return MPC_RNDNN; }
 /////////////////////////////////////////// Functions ////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-Var *rngSeed(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *rngSeed(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	     const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarMPInt>()) {
@@ -135,7 +135,7 @@ Var *rngSeed(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 ///////////////////////////////////////// Int Functions //////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-Var *mpIntNewNative(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntNewNative(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		    const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarInt>() && !args[1]->is<VarStr>() && !args[1]->is<VarMPInt>() &&
@@ -161,7 +161,7 @@ Var *mpIntNewNative(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 }
 
 #define ARITHI_FUNC(fn, name)                                                                  \
-	Var *mpInt##fn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,                       \
+	Var *mpInt##fn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,                    \
 		       const StringMap<AssnArgData> &assn_args)                                \
 	{                                                                                      \
 		if(args[1]->is<VarMPInt>()) {                                                  \
@@ -188,7 +188,7 @@ Var *mpIntNewNative(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	}
 
 #define ARITHI_ASSN_FUNC(fn, name)                                                               \
-	Var *mpIntAssn##fn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,                     \
+	Var *mpIntAssn##fn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,                  \
 			   const StringMap<AssnArgData> &assn_args)                              \
 	{                                                                                        \
 		if(args[1]->is<VarMPInt>()) {                                                    \
@@ -213,7 +213,7 @@ Var *mpIntNewNative(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	}
 
 #define LOGICI_FUNC(fn, name, sym)                                                         \
-	Var *mpInt##fn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,                   \
+	Var *mpInt##fn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,                \
 		       const StringMap<AssnArgData> &assn_args)                            \
 	{                                                                                  \
 		if(args[1]->is<VarMPInt>()) {                                              \
@@ -242,7 +242,7 @@ LOGICI_FUNC(GT, gt, >)
 LOGICI_FUNC(LE, le, <=)
 LOGICI_FUNC(GE, ge, >=)
 
-Var *mpIntEq(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntEq(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	     const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPInt>()) {
@@ -254,7 +254,7 @@ Var *mpIntEq(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return vm.getFalse();
 }
 
-Var *mpIntNe(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntNe(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	     const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPInt>()) {
@@ -266,7 +266,7 @@ Var *mpIntNe(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return vm.getTrue();
 }
 
-Var *mpIntDiv(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntDiv(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	      const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPInt>()) {
@@ -299,7 +299,7 @@ Var *mpIntDiv(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return nullptr;
 }
 
-Var *mpIntAssnDiv(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntAssnDiv(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		  const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPInt>()) {
@@ -331,7 +331,7 @@ Var *mpIntAssnDiv(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return nullptr;
 }
 
-Var *mpIntBAnd(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntBAnd(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	       const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPInt>()) {
@@ -344,7 +344,7 @@ Var *mpIntBAnd(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return nullptr;
 }
 
-Var *mpIntBOr(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntBOr(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	      const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPInt>()) {
@@ -357,7 +357,7 @@ Var *mpIntBOr(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return nullptr;
 }
 
-Var *mpIntBXOr(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntBXOr(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	       const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPInt>()) {
@@ -370,7 +370,7 @@ Var *mpIntBXOr(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return nullptr;
 }
 
-Var *mpIntBNot(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntBNot(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	       const StringMap<AssnArgData> &assn_args)
 {
 	VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
@@ -378,7 +378,7 @@ Var *mpIntBNot(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpIntBAndAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntBAndAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		   const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPInt>()) {
@@ -393,7 +393,7 @@ Var *mpIntBAndAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return nullptr;
 }
 
-Var *mpIntBOrAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntBOrAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		  const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPInt>()) {
@@ -406,7 +406,7 @@ Var *mpIntBOrAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return nullptr;
 }
 
-Var *mpIntBXOrAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntBXOrAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		   const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPInt>()) {
@@ -418,14 +418,14 @@ Var *mpIntBXOrAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return nullptr;
 }
 
-Var *mpIntBNotAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntBNotAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		   const StringMap<AssnArgData> &assn_args)
 {
 	mpz_com(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr());
 	return args[0];
 }
 
-Var *mpIntLShift(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntLShift(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		 const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPInt>()) {
@@ -450,7 +450,7 @@ Var *mpIntLShift(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return nullptr;
 }
 
-Var *mpIntRShift(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntRShift(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		 const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPInt>()) {
@@ -475,7 +475,7 @@ Var *mpIntRShift(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return nullptr;
 }
 
-Var *mpIntLShiftAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntLShiftAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		     const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPInt>()) {
@@ -497,7 +497,7 @@ Var *mpIntLShiftAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return nullptr;
 }
 
-Var *mpIntRShiftAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntRShiftAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		     const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPInt>()) {
@@ -519,7 +519,7 @@ Var *mpIntRShiftAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return nullptr;
 }
 
-Var *mpIntPow(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntPow(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	      const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPInt>()) {
@@ -542,7 +542,7 @@ Var *mpIntPow(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return nullptr;
 }
 
-Var *mpIntRoot(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntRoot(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	       const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPInt>()) {
@@ -565,14 +565,14 @@ Var *mpIntRoot(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return nullptr;
 }
 
-Var *mpIntPreInc(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntPreInc(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		 const StringMap<AssnArgData> &assn_args)
 {
 	mpz_add_ui(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), 1);
 	return args[0];
 }
 
-Var *mpIntPostInc(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntPostInc(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		  const StringMap<AssnArgData> &assn_args)
 {
 	VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
@@ -580,14 +580,14 @@ Var *mpIntPostInc(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpIntPreDec(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntPreDec(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		 const StringMap<AssnArgData> &assn_args)
 {
 	mpz_sub_ui(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), 1);
 	return args[0];
 }
 
-Var *mpIntPostDec(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntPostDec(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		  const StringMap<AssnArgData> &assn_args)
 {
 	VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
@@ -595,7 +595,7 @@ Var *mpIntPostDec(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpIntUSub(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntUSub(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	       const StringMap<AssnArgData> &assn_args)
 {
 	VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
@@ -603,19 +603,19 @@ Var *mpIntUSub(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpIntPopCnt(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntPopCnt(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		 const StringMap<AssnArgData> &assn_args)
 {
 	return vm.makeVar<VarMPInt>(loc, mpz_popcount(as<VarMPInt>(args[0])->getSrcPtr()));
 }
 
-Var *mpIntToInt(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntToInt(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		const StringMap<AssnArgData> &assn_args)
 {
 	return vm.makeVar<VarMPInt>(loc, mpz_get_si(as<VarMPInt>(args[0])->getPtr()));
 }
 
-Var *mpIntToStr(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntToStr(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		const StringMap<AssnArgData> &assn_args)
 {
 	typedef void (*gmp_freefunc_t)(void *, size_t);
@@ -720,7 +720,7 @@ bool VarMPIntIterator::next(mpz_ptr val)
 	return true;
 }
 
-Var *mpIntRange(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpIntRange(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		const StringMap<AssnArgData> &assn_args)
 {
 	Var *lhs_base  = args[1];
@@ -756,7 +756,7 @@ Var *mpIntRange(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *getMPIntIteratorNext(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *getMPIntIteratorNext(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 			  const StringMap<AssnArgData> &assn_args)
 {
 	VarMPIntIterator *it = as<VarMPIntIterator>(args[0]);
@@ -772,7 +772,7 @@ Var *getMPIntIteratorNext(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 
 // RNG
 
-Var *rngSeedInt(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *rngSeedInt(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarMPInt>()) {
@@ -785,7 +785,7 @@ Var *rngSeedInt(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 }
 
 // [0, to)
-Var *rngGetInt(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *rngGetInt(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	       const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarMPInt>()) {
@@ -802,7 +802,7 @@ Var *rngGetInt(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 //////////////////////////////////////// Float Functions /////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-Var *mpFltNewNative(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpFltNewNative(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		    const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarFlt>() && !args[1]->is<VarStr>() && !args[1]->is<VarMPInt>() &&
@@ -828,7 +828,7 @@ Var *mpFltNewNative(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 }
 
 #define ARITHF_FUNC(fn, name, namez)                                                               \
-	Var *mpFlt##fn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,                           \
+	Var *mpFlt##fn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,                        \
 		       const StringMap<AssnArgData> &assn_args)                                    \
 	{                                                                                          \
 		if(args[1]->is<VarMPInt>()) {                                                      \
@@ -852,7 +852,7 @@ Var *mpFltNewNative(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	}
 
 #define ARITHF_ASSN_FUNC(fn, name, namez)                                                          \
-	Var *mpFltAssn##fn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,                       \
+	Var *mpFltAssn##fn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,                    \
 			   const StringMap<AssnArgData> &assn_args)                                \
 	{                                                                                          \
 		if(args[1]->is<VarMPInt>()) {                                                      \
@@ -873,7 +873,7 @@ Var *mpFltNewNative(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	}
 
 #define LOGICF_FUNC(name, checksym)                                                       \
-	Var *mpFlt##name(Interpreter &vm, ModuleLoc loc, Span<Var *> args,                \
+	Var *mpFlt##name(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,             \
 			 const StringMap<AssnArgData> &assn_args)                         \
 	{                                                                                 \
 		if(args[1]->is<VarInt>()) {                                               \
@@ -920,7 +920,7 @@ LOGICF_FUNC(GT, >)
 LOGICF_FUNC(LE, <=)
 LOGICF_FUNC(GE, >=)
 
-Var *mpFltEQ(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpFltEQ(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	     const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarMPFlt>()) return vm.getFalse();
@@ -929,7 +929,7 @@ Var *mpFltEQ(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	       : vm.getFalse();
 }
 
-Var *mpFltNE(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpFltNE(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	     const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarMPFlt>()) return vm.getTrue();
@@ -938,7 +938,7 @@ Var *mpFltNE(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	       : vm.getFalse();
 }
 
-Var *mpFltPreInc(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpFltPreInc(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		 const StringMap<AssnArgData> &assn_args)
 {
 	mpfr_add_ui(as<VarMPFlt>(args[0])->getPtr(), as<VarMPFlt>(args[0])->getSrcPtr(), 1,
@@ -946,7 +946,7 @@ Var *mpFltPreInc(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return args[0];
 }
 
-Var *mpFltPostInc(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpFltPostInc(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		  const StringMap<AssnArgData> &assn_args)
 {
 	VarMPFlt *res = vm.makeVar<VarMPFlt>(loc, as<VarMPFlt>(args[0])->getPtr());
@@ -955,7 +955,7 @@ Var *mpFltPostInc(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpFltPreDec(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpFltPreDec(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		 const StringMap<AssnArgData> &assn_args)
 {
 	mpfr_sub_ui(as<VarMPFlt>(args[0])->getPtr(), as<VarMPFlt>(args[0])->getSrcPtr(), 1,
@@ -963,7 +963,7 @@ Var *mpFltPreDec(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return args[0];
 }
 
-Var *mpFltPostDec(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpFltPostDec(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		  const StringMap<AssnArgData> &assn_args)
 {
 	VarMPFlt *res = vm.makeVar<VarMPFlt>(loc, as<VarMPFlt>(args[0])->getPtr());
@@ -972,7 +972,7 @@ Var *mpFltPostDec(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpFltUSub(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpFltUSub(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	       const StringMap<AssnArgData> &assn_args)
 {
 	VarMPFlt *res = vm.makeVar<VarMPFlt>(loc, as<VarMPFlt>(args[0])->getPtr());
@@ -981,7 +981,7 @@ Var *mpFltUSub(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpFltRound(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpFltRound(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		const StringMap<AssnArgData> &assn_args)
 {
 	VarMPInt *res = vm.makeVar<VarMPInt>(loc, 0);
@@ -989,7 +989,7 @@ Var *mpFltRound(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpFltPow(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpFltPow(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	      const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarMPInt>()) {
@@ -1002,7 +1002,7 @@ Var *mpFltPow(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpFltRoot(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpFltRoot(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	       const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarMPInt>()) {
@@ -1020,13 +1020,13 @@ Var *mpFltRoot(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpFltToFlt(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpFltToFlt(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		const StringMap<AssnArgData> &assn_args)
 {
 	return vm.makeVar<VarFlt>(loc, mpfr_get_d(as<VarMPFlt>(args[0])->getPtr(), MPFR_RNDN));
 }
 
-Var *mpFltToStr(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpFltToStr(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		const StringMap<AssnArgData> &assn_args)
 {
 	mpfr_exp_t expo;
@@ -1058,7 +1058,7 @@ Var *mpFltToStr(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 // RNG
 
 // [0.0, to]
-Var *rngGetFlt(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *rngGetFlt(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 	       const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarMPFlt>()) {
@@ -1076,7 +1076,7 @@ Var *rngGetFlt(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 //////////////////////////////////////// Complex Functions ///////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-Var *mpComplexNewNative(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexNewNative(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 			const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarInt>() && !args[1]->is<VarFlt>() && !args[1]->is<VarMPInt>() &&
@@ -1125,7 +1125,7 @@ Var *mpComplexNewNative(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 }
 
 #define LOGICC_FUNC(name, sym)                                                       \
-	Var *mpComplex##name(Interpreter &vm, ModuleLoc loc, Span<Var *> args,       \
+	Var *mpComplex##name(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,    \
 			     const StringMap<AssnArgData> &assn_args)                \
 	{                                                                            \
 		if(args[1]->is<VarMPComplex>()) {                                    \
@@ -1142,7 +1142,7 @@ LOGICC_FUNC(Gt, >)
 LOGICC_FUNC(Le, <=)
 LOGICC_FUNC(Ge, >=)
 
-Var *mpComplexAdd(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexAdd(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		  const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarInt>() && !args[1]->is<VarMPFlt>() && !args[1]->is<VarMPComplex>()) {
@@ -1166,7 +1166,7 @@ Var *mpComplexAdd(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpComplexSub(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexSub(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		  const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarInt>() && !args[1]->is<VarMPFlt>() && !args[1]->is<VarMPComplex>()) {
@@ -1190,7 +1190,7 @@ Var *mpComplexSub(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpComplexMul(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexMul(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		  const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarInt>() && !args[1]->is<VarMPFlt>() && !args[1]->is<VarMPComplex>()) {
@@ -1214,7 +1214,7 @@ Var *mpComplexMul(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpComplexDiv(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexDiv(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		  const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarInt>() && !args[1]->is<VarMPFlt>() && !args[1]->is<VarMPComplex>()) {
@@ -1238,7 +1238,7 @@ Var *mpComplexDiv(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpComplexAddAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexAddAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		      const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarInt>() && !args[1]->is<VarMPFlt>() && !args[1]->is<VarMPComplex>()) {
@@ -1262,7 +1262,7 @@ Var *mpComplexAddAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return base;
 }
 
-Var *mpComplexSubAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexSubAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		      const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarInt>() && !args[1]->is<VarMPFlt>() && !args[1]->is<VarMPComplex>()) {
@@ -1286,7 +1286,7 @@ Var *mpComplexSubAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return base;
 }
 
-Var *mpComplexMulAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexMulAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		      const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarInt>() && !args[1]->is<VarMPFlt>() && !args[1]->is<VarMPComplex>()) {
@@ -1310,7 +1310,7 @@ Var *mpComplexMulAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return base;
 }
 
-Var *mpComplexDivAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexDivAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		      const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarInt>() && !args[1]->is<VarMPFlt>() && !args[1]->is<VarMPComplex>()) {
@@ -1334,7 +1334,7 @@ Var *mpComplexDivAssn(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return base;
 }
 
-Var *mpComplexEq(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexEq(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		 const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPComplex>()) {
@@ -1346,7 +1346,7 @@ Var *mpComplexEq(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return vm.getFalse();
 }
 
-Var *mpComplexNe(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexNe(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		 const StringMap<AssnArgData> &assn_args)
 {
 	if(args[1]->is<VarMPComplex>()) {
@@ -1358,7 +1358,7 @@ Var *mpComplexNe(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return vm.getTrue();
 }
 
-Var *mpComplexPreInc(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexPreInc(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		     const StringMap<AssnArgData> &assn_args)
 {
 	mpc_add_ui(as<VarMPComplex>(args[0])->getPtr(), as<VarMPComplex>(args[0])->getSrcPtr(), 1,
@@ -1366,7 +1366,7 @@ Var *mpComplexPreInc(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return args[0];
 }
 
-Var *mpComplexPostInc(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexPostInc(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		      const StringMap<AssnArgData> &assn_args)
 {
 	VarMPComplex *res = vm.makeVar<VarMPComplex>(loc, as<VarMPComplex>(args[0])->getSrcPtr());
@@ -1375,7 +1375,7 @@ Var *mpComplexPostInc(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpComplexPreDec(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexPreDec(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		     const StringMap<AssnArgData> &assn_args)
 {
 	mpc_sub_ui(as<VarMPComplex>(args[0])->getPtr(), as<VarMPComplex>(args[0])->getSrcPtr(), 1,
@@ -1383,7 +1383,7 @@ Var *mpComplexPreDec(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return args[0];
 }
 
-Var *mpComplexPostDec(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexPostDec(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		      const StringMap<AssnArgData> &assn_args)
 {
 	VarMPComplex *res = vm.makeVar<VarMPComplex>(loc, as<VarMPComplex>(args[0])->getSrcPtr());
@@ -1392,7 +1392,7 @@ Var *mpComplexPostDec(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpComplexUSub(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexUSub(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		   const StringMap<AssnArgData> &assn_args)
 {
 	VarMPComplex *res = vm.makeVar<VarMPComplex>(loc, as<VarMPComplex>(args[0])->getSrcPtr());
@@ -1401,7 +1401,7 @@ Var *mpComplexUSub(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpComplexPow(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexPow(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		  const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarInt>() && !args[1]->is<VarFlt>() && !args[1]->is<VarMPInt>() &&
@@ -1427,7 +1427,7 @@ Var *mpComplexPow(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpComplexAbs(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexAbs(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		  const StringMap<AssnArgData> &assn_args)
 {
 	VarMPFlt *res = vm.makeVar<VarMPFlt>(loc, 0.0);
@@ -1436,7 +1436,7 @@ Var *mpComplexAbs(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
 	return res;
 }
 
-Var *mpComplexSet(Interpreter &vm, ModuleLoc loc, Span<Var *> args,
+Var *mpComplexSet(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 		  const StringMap<AssnArgData> &assn_args)
 {
 	if(!args[1]->is<VarInt>() && !args[1]->is<VarFlt>() && !args[1]->is<VarMPInt>() &&
