@@ -45,7 +45,7 @@ class VarMPFlt : public Var
     void onSet(MemoryManager &mem, Var *from) override;
 
 public:
-    VarMPFlt(ModuleLoc loc, long double _val);
+    VarMPFlt(ModuleLoc loc, double _val);
     VarMPFlt(ModuleLoc loc, mpfr_srcptr _val);
     VarMPFlt(ModuleLoc loc, mpz_srcptr _val);
     VarMPFlt(ModuleLoc loc, const char *_val);
@@ -70,7 +70,7 @@ class VarMPComplex : public Var
 public:
     VarMPComplex(ModuleLoc loc);
     VarMPComplex(ModuleLoc loc, int64_t real, int64_t imag);
-    VarMPComplex(ModuleLoc loc, long double real, long double imag);
+    VarMPComplex(ModuleLoc loc, double real, double imag);
     VarMPComplex(ModuleLoc loc, mpfr_srcptr real, mpfr_srcptr imag);
     VarMPComplex(ModuleLoc loc, mpz_srcptr real, mpz_srcptr imag);
     VarMPComplex(ModuleLoc loc, mpc_srcptr _val);

@@ -37,7 +37,7 @@ void VarMPInt::onSet(MemoryManager &mem, Var *from) { mpz_set(val, as<VarMPInt>(
 /////////////////////////////////////////// VarMPFlt /////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-VarMPFlt::VarMPFlt(ModuleLoc loc, long double _val) : Var(loc, false, false)
+VarMPFlt::VarMPFlt(ModuleLoc loc, double _val) : Var(loc, false, false)
 {
     mpfr_init_set_ld(val, _val, mpfr_get_default_rounding_mode());
 }
@@ -73,8 +73,7 @@ VarMPComplex::VarMPComplex(ModuleLoc loc, int64_t real, int64_t imag) : Var(loc,
     initBase();
     mpc_set_si_si(val, real, imag, mpc_get_default_rounding_mode());
 }
-VarMPComplex::VarMPComplex(ModuleLoc loc, long double real, long double imag)
-    : Var(loc, false, false)
+VarMPComplex::VarMPComplex(ModuleLoc loc, double real, double imag) : Var(loc, false, false)
 {
     initBase();
     mpc_set_ld_ld(val, real, imag, mpc_get_default_rounding_mode());
@@ -119,13 +118,11 @@ mpc_rnd_t mpc_get_default_rounding_mode() { return MPC_RNDNN; }
 /////////////////////////////////////////// Functions ////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-Var *rngSeed(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-             const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(rngSeed, 1, false,
+           "  fn(seed) -> Nil\n"
+           "Provides a `seed` number to the random number generator.")
 {
-    if(!args[1]->is<VarMPInt>()) {
-        vm.fail(loc, "expected seed value to be a big int, found: ", vm.getTypeName(args[1]));
-        return nullptr;
-    }
+    EXPECT(VarMPInt, args[1], "seed value");
     gmp_randseed(rngstate, as<VarMPInt>(args[1])->getPtr());
     return vm.getNil();
 }
@@ -134,87 +131,75 @@ Var *rngSeed(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 ///////////////////////////////////////// Int Functions //////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-Var *mpIntNewNative(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                    const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntNewNative, 1, false,
+           "  fn(value) -> MPInt\n"
+           "Creates and returns a new MPInt with `value`.\n"
+           "Here `value` can be any of Int / Str / MPInt / MPFlt")
 {
-    if(!args[1]->is<VarInt>() && !args[1]->is<VarStr>() && !args[1]->is<VarMPInt>() &&
-       !args[1]->is<VarMPFlt>())
-    {
-        vm.fail(loc,
-                "argument 1 to bignum.newInt() must be of "
-                "type 'int', 'str', 'bigint', or 'bigflt', found: ",
-                vm.getTypeName(args[1]));
-        return nullptr;
-    }
-
-    if(args[1]->is<VarInt>()) {
-        return vm.makeVar<VarMPInt>(loc, as<VarInt>(args[1])->getVal());
-    }
+    EXPECT4(VarInt, VarStr, VarMPInt, VarMPFlt, args[1], "initial value");
+    if(args[1]->is<VarInt>()) { return vm.makeVar<VarMPInt>(loc, as<VarInt>(args[1])->getVal()); }
     if(args[1]->is<VarStr>()) {
         return vm.makeVar<VarMPInt>(loc, as<VarStr>(args[1])->getVal().c_str());
     }
     if(args[1]->is<VarMPInt>()) {
         return vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[1])->getPtr());
     }
-    return vm.makeVar<VarMPFlt>(loc, as<VarMPFlt>(args[1])->getSrcPtr());
+    return vm.makeVar<VarMPInt>(loc, as<VarMPFlt>(args[1])->getSrcPtr());
 }
 
-#define ARITHI_FUNC(fn, name)                                                                      \
-    Var *mpInt##fn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,                            \
-                   const StringMap<AssnArgData> &assnArgs)                                         \
-    {                                                                                              \
-        if(args[1]->is<VarMPInt>()) {                                                              \
-            VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());         \
-            mpz_##name(res->getPtr(), res->getSrcPtr(), as<VarMPInt>(args[1])->getSrcPtr());       \
-            return res;                                                                            \
-        } else if(args[1]->is<VarMPFlt>()) {                                                       \
-            VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());         \
-            mpz_t tmp;                                                                             \
-            mpz_init(tmp);                                                                         \
-            mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode()); \
-            mpz_##name(res->getPtr(), res->getSrcPtr(), tmp);                                      \
-            mpz_clear(tmp);                                                                        \
-            return res;                                                                            \
-        }                                                                                          \
-        vm.fail(loc, "expected int or float argument for int " STRINGIFY(name) ", found: ",        \
-                vm.getTypeName(args[1]));                                                          \
-        return nullptr;                                                                            \
+#define ARITHI_FUNC(fn, name)                                                                  \
+    FERAL_FUNC(mpInt##fn, 1, false,                                                            \
+               "  var.fn(other) -> MPInt\n"                                                    \
+               "Applies arithmetic-" STRINGIFY(                                                \
+                   name) " on `var` and `other` and returns a new MPInt with the result.")     \
+    {                                                                                          \
+        EXPECT2(VarMPInt, VarMPFlt, args[1], "big int " STRINGIFY(name));                      \
+        if(args[1]->is<VarMPInt>()) {                                                          \
+            VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());     \
+            mpz_##name(res->getPtr(), res->getSrcPtr(), as<VarMPInt>(args[1])->getSrcPtr());   \
+            return res;                                                                        \
+        }                                                                                      \
+        VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());         \
+        mpz_t tmp;                                                                             \
+        mpz_init(tmp);                                                                         \
+        mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode()); \
+        mpz_##name(res->getPtr(), res->getSrcPtr(), tmp);                                      \
+        mpz_clear(tmp);                                                                        \
+        return res;                                                                            \
     }
 
-#define ARITHI_ASSN_FUNC(fn, name)                                                                 \
-    Var *mpIntAssn##fn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,                        \
-                       const StringMap<AssnArgData> &assnArgs)                                     \
-    {                                                                                              \
-        if(args[1]->is<VarMPInt>()) {                                                              \
-            mpz_##name(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),        \
-                       as<VarMPInt>(args[1])->getSrcPtr());                                        \
-            return args[0];                                                                        \
-        } else if(args[1]->is<VarMPFlt>()) {                                                       \
-            mpz_t tmp;                                                                             \
-            mpz_init(tmp);                                                                         \
-            mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode()); \
-            mpz_##name(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), tmp);  \
-            mpz_clear(tmp);                                                                        \
-            return args[0];                                                                        \
-        }                                                                                          \
-        vm.fail(loc, "expected int or float argument for int " STRINGIFY(name) "-assn, found: ",   \
-                vm.getTypeName(args[1]));                                                          \
-        return nullptr;                                                                            \
+#define ARITHI_ASSN_FUNC(fn, name)                                                             \
+    FERAL_FUNC(mpIntAssn##fn, 1, false,                                                        \
+               "  var.fn(other) -> var\n"                                                      \
+               "Applies arithmetic-" STRINGIFY(                                                \
+                   name) " on `var` with `other` and returns the updated `var`.")              \
+    {                                                                                          \
+        EXPECT_NO_CONST(args[0], "var");                                                       \
+        EXPECT2(VarMPInt, VarMPFlt, args[1], "big int " STRINGIFY(name) "-assn");              \
+        if(args[1]->is<VarMPInt>()) {                                                          \
+            mpz_##name(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),    \
+                       as<VarMPInt>(args[1])->getSrcPtr());                                    \
+            return args[0];                                                                    \
+        }                                                                                      \
+        mpz_t tmp;                                                                             \
+        mpz_init(tmp);                                                                         \
+        mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode()); \
+        mpz_##name(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), tmp);  \
+        mpz_clear(tmp);                                                                        \
+        return args[0];                                                                        \
     }
 
-#define LOGICI_FUNC(fn, name, sym)                                                                 \
-    Var *mpInt##fn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,                            \
-                   const StringMap<AssnArgData> &assnArgs)                                         \
-    {                                                                                              \
-        if(args[1]->is<VarMPInt>()) {                                                              \
-            return mpz_cmp(as<VarMPInt>(args[0])->getSrcPtr(), as<VarMPInt>(args[1])->getSrcPtr()) \
-                           sym 0                                                                   \
-                       ? vm.getTrue()                                                              \
-                       : vm.getFalse();                                                            \
-        }                                                                                          \
-        vm.fail(loc, "expected int argument for int " STRINGIFY(name) ", found: ",                 \
-                vm.getTypeName(args[1]));                                                          \
-        return nullptr;                                                                            \
+#define LOGICI_FUNC(fn, name, sym)                                                             \
+    FERAL_FUNC(mpInt##fn, 1, false,                                                            \
+               "  var.fn(other) -> Bool\n"                                                     \
+               "Applies logical '" STRINGIFY(                                                  \
+                   name) "' between `var` and `other` and returns the resulting Bool.")        \
+    {                                                                                          \
+        EXPECT(VarMPInt, args[1], "big int logical " STRINGIFY(name));                         \
+        return mpz_cmp(as<VarMPInt>(args[0])->getSrcPtr(), as<VarMPInt>(args[1])->getSrcPtr()) \
+                       sym 0                                                                   \
+                   ? vm.getTrue()                                                              \
+                   : vm.getFalse();                                                            \
     }
 
 ARITHI_FUNC(Add, add)
@@ -232,8 +217,9 @@ LOGICI_FUNC(GT, gt, >)
 LOGICI_FUNC(LE, le, <=)
 LOGICI_FUNC(GE, ge, >=)
 
-Var *mpIntEq(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-             const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntEQ, 1, false,
+           "  var.fn(other) -> Bool\n"
+           "Returns `true` if `var` and `other` are equal.")
 {
     if(args[1]->is<VarMPInt>()) {
         return mpz_cmp(as<VarMPInt>(args[0])->getSrcPtr(), as<VarMPInt>(args[1])->getSrcPtr()) == 0
@@ -243,8 +229,9 @@ Var *mpIntEq(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return vm.getFalse();
 }
 
-Var *mpIntNe(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-             const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntNE, 1, false,
+           "  var.fn(other) -> Bool\n"
+           "Returns `true` if `var` and `other` are not equal.")
 {
     if(args[1]->is<VarMPInt>()) {
         return mpz_cmp(as<VarMPInt>(args[0])->getSrcPtr(), as<VarMPInt>(args[1])->getSrcPtr()) != 0
@@ -254,9 +241,11 @@ Var *mpIntNe(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return vm.getTrue();
 }
 
-Var *mpIntDiv(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-              const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntDiv, 1, false,
+           "  var.fn(other) -> MPInt\n"
+           "Divides `var` by `other` and returns a new MPInt with the result.")
 {
+    EXPECT2(VarMPInt, VarMPFlt, args[1], "big int division");
     if(args[1]->is<VarMPInt>()) {
         // rhs == 0
         if(mpz_get_ui(as<VarMPInt>(args[1])->getSrcPtr()) == 0) {
@@ -266,29 +255,28 @@ Var *mpIntDiv(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
         VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
         mpz_div(res->getPtr(), res->getSrcPtr(), as<VarMPInt>(args[1])->getSrcPtr());
         return res;
-    } else if(args[1]->is<VarMPFlt>()) {
-        VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
-        mpz_t tmp;
-        mpz_init(tmp);
-        mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());
-        // rhs == 0
-        if(mpz_get_ui(tmp) == 0) {
-            vm.fail(loc, "division by zero");
-            mpz_clear(tmp);
-            return nullptr;
-        }
-        mpz_div(res->getPtr(), res->getSrcPtr(), tmp);
-        mpz_clear(tmp);
-        return res;
     }
-    vm.fail(loc, "expected int or float argument for int " STRINGIFY(name) ", found: ",
-            vm.getTypeName(args[1]));
-    return nullptr;
+    VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
+    mpz_t tmp;
+    mpz_init(tmp);
+    mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());
+    // rhs == 0
+    if(mpz_get_ui(tmp) == 0) {
+        vm.fail(loc, "division by zero");
+        mpz_clear(tmp);
+        return nullptr;
+    }
+    mpz_div(res->getPtr(), res->getSrcPtr(), tmp);
+    mpz_clear(tmp);
+    return res;
 }
 
-Var *mpIntAssnDiv(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                  const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntAssnDiv, 1, false,
+           "  var.fn(other) -> var\n"
+           "Divides `var` by `other` and returns the updated `var`.")
 {
+    EXPECT_NO_CONST(args[0], "var");
+    EXPECT2(VarMPInt, VarMPFlt, args[1], "big int division");
     if(args[1]->is<VarMPInt>()) {
         // rhs == 0
         if(mpz_get_ui(as<VarMPInt>(args[1])->getSrcPtr()) == 0) {
@@ -298,300 +286,285 @@ Var *mpIntAssnDiv(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
         mpz_div(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
                 as<VarMPInt>(args[1])->getSrcPtr());
         return args[0];
-    } else if(args[1]->is<VarMPFlt>()) {
-        mpz_t tmp;
-        mpz_init(tmp);
-        mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());
-        // rhs == 0
-        if(mpz_get_ui(tmp) == 0) {
-            vm.fail(loc, "division by zero");
-            mpz_clear(tmp);
-            return nullptr;
-        }
-        mpz_div(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), tmp);
+    }
+    mpz_t tmp;
+    mpz_init(tmp);
+    mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());
+    // rhs == 0
+    if(mpz_get_ui(tmp) == 0) {
+        vm.fail(loc, "division by zero");
         mpz_clear(tmp);
-        return args[0];
+        return nullptr;
     }
-    vm.fail(loc, "expected int or float argument for int " STRINGIFY(name) "-assn, found: ",
-            vm.getTypeName(args[1]));
-    return nullptr;
+    mpz_div(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), tmp);
+    mpz_clear(tmp);
+    return args[0];
 }
 
-Var *mpIntBAnd(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-               const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntBAnd, 1, false,
+           "  var.fn(other) -> MPInt\n"
+           "Applies bitwise AND operation between `var` and `other` and returns a new MPInt with "
+           "the result.")
 {
-    if(args[1]->is<VarMPInt>()) {
-        VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
-        mpz_and(res->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
-                as<VarMPInt>(args[1])->getSrcPtr());
-        return res;
-    }
-    vm.fail(loc, "expected int argument for int bitwise and, found: ", vm.getTypeName(args[1]));
-    return nullptr;
+    EXPECT(VarMPInt, args[1], "big int bitwise AND");
+    VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
+    mpz_and(res->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), as<VarMPInt>(args[1])->getSrcPtr());
+    return res;
 }
 
-Var *mpIntBOr(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-              const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntBOr, 1, false,
+           "  var.fn(other) -> MPInt\n"
+           "Applies bitwise OR operation between `var` and `other` and returns a new MPInt with "
+           "the result.")
 {
-    if(args[1]->is<VarMPInt>()) {
-        VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
-        mpz_ior(res->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
-                as<VarMPInt>(args[1])->getSrcPtr());
-        return res;
-    }
-    vm.fail(loc, "expected int argument for int bitwise or, found: ", vm.getTypeName(args[1]));
-    return nullptr;
+    EXPECT(VarMPInt, args[1], "big int bitwise OR");
+    VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
+    mpz_ior(res->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), as<VarMPInt>(args[1])->getSrcPtr());
+    return res;
 }
 
-Var *mpIntBXOr(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-               const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntBXOr, 1, false,
+           "  var.fn(other) -> MPInt\n"
+           "Applies bitwise XOR operation between `var` and `other` and returns a new MPInt with "
+           "the result.")
 {
-    if(args[1]->is<VarMPInt>()) {
-        VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
-        mpz_xor(res->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
-                as<VarMPInt>(args[1])->getSrcPtr());
-        return res;
-    }
-    vm.fail(loc, "expected int argument for int bitwise xor, found: ", vm.getTypeName(args[1]));
-    return nullptr;
+    EXPECT(VarMPInt, args[1], "big int bitwise XOR");
+    VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
+    mpz_xor(res->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), as<VarMPInt>(args[1])->getSrcPtr());
+    return res;
 }
 
-Var *mpIntBNot(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-               const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntBNot, 0, false,
+           "  var.fn() -> MPInt\n"
+           "Applies bitwise NOT operation on `var` and returns a new MPInt with the result.")
 {
     VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
     mpz_com(res->getPtr(), as<VarMPInt>(args[0])->getSrcPtr());
     return res;
 }
 
-Var *mpIntBAndAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                   const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntAssnBAnd, 1, false,
+           "  var.fn(other) -> var\n"
+           "Applies bitwise AND operation between `var` and `other` and returns the updated `var`.")
 {
-    if(args[1]->is<VarMPInt>()) {
-        mpz_and(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
-                as<VarMPInt>(args[1])->getSrcPtr());
-        return args[0];
-    }
-    vm.fail(loc,
-            "expected int argument for int "
-            "bitwise and-assn, found: ",
-            vm.getTypeName(args[1]));
-    return nullptr;
+    EXPECT_NO_CONST(args[0], "var");
+    EXPECT(VarMPInt, args[1], "big int bitwise AND-assn");
+    mpz_and(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
+            as<VarMPInt>(args[1])->getSrcPtr());
+    return args[0];
 }
 
-Var *mpIntBOrAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                  const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntAssnBOr, 1, false,
+           "  var.fn(other) -> var\n"
+           "Applies bitwise OR operation between `var` and `other` and returns the updated `var`.")
 {
-    if(args[1]->is<VarMPInt>()) {
-        mpz_ior(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
-                as<VarMPInt>(args[1])->getSrcPtr());
-        return args[0];
-    }
-    vm.fail(loc, "expected int argument for int bitwise or-assn, found: ", vm.getTypeName(args[1]));
-    return nullptr;
+    EXPECT_NO_CONST(args[0], "var");
+    EXPECT(VarMPInt, args[1], "big int bitwise OR-assn");
+    mpz_ior(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
+            as<VarMPInt>(args[1])->getSrcPtr());
+    return args[0];
 }
 
-Var *mpIntBXOrAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                   const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntAssnBXOr, 1, false,
+           "  var.fn(other) -> var\n"
+           "Applies bitwise XOR operation between `var` and `other` and returns the updated `var`.")
 {
-    if(args[1]->is<VarMPInt>()) {
-        mpz_xor(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
-                as<VarMPInt>(args[1])->getSrcPtr());
-        return args[0];
-    }
-    vm.fail(loc, "expected int argument for int bitwise xor, found: ", vm.getTypeName(args[1]));
-    return nullptr;
+    EXPECT_NO_CONST(args[0], "var");
+    EXPECT(VarMPInt, args[1], "big int bitwise XOR-assn");
+    mpz_xor(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
+            as<VarMPInt>(args[1])->getSrcPtr());
+    return args[0];
 }
 
-Var *mpIntBNotAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                   const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntAssnBNot, 0, false,
+           "  var.fn(other) -> var\n"
+           "Applies bitwise NOT operation on `var` and returns the updated `var`.")
 {
+    EXPECT_NO_CONST(args[0], "var");
     mpz_com(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr());
     return args[0];
 }
 
-Var *mpIntLShift(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                 const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(
+    mpIntLShift, 1, false,
+    "  var.fn(other) -> MPInt\n"
+    "Applies left shift operation on `var` using `other` and returns a new MPInt with the result.")
 {
+    EXPECT2(VarMPInt, VarMPFlt, args[1], "big int left-shift");
     if(args[1]->is<VarMPInt>()) {
         VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
         mpz_mul_2exp(res->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
                      mpz_get_si(as<VarMPInt>(args[1])->getSrcPtr()));
         return res;
-    } else if(args[1]->is<VarMPFlt>()) {
-        VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
-        mpz_t tmp;
-        mpz_init(tmp);
-        mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());
-        mpz_mul_2exp(res->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), mpz_get_si(tmp));
-        mpz_clear(tmp);
-        return res;
     }
-    vm.fail(loc,
-            "expected bigint or float argument "
-            "for bigint leftshift, found: ",
-            vm.getTypeName(args[1]));
-    return nullptr;
+    VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
+    mpz_t tmp;
+    mpz_init(tmp);
+    mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());
+    mpz_mul_2exp(res->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), mpz_get_si(tmp));
+    mpz_clear(tmp);
+    return res;
 }
 
-Var *mpIntRShift(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                 const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(
+    mpIntRShift, 1, false,
+    "  var.fn(other) -> MPInt\n"
+    "Applies right shift operation on `var` using `other` and returns a new MPInt with the result.")
 {
+    EXPECT2(VarMPInt, VarMPFlt, args[1], "big int right-shift");
     if(args[1]->is<VarMPInt>()) {
         VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
         mpz_div_2exp(res->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
                      mpz_get_si(as<VarMPInt>(args[1])->getSrcPtr()));
         return res;
-    } else if(args[1]->is<VarMPFlt>()) {
-        VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
-        mpz_t tmp;
-        mpz_init(tmp);
-        mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());
-        mpz_div_2exp(res->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), mpz_get_si(tmp));
-        mpz_clear(tmp);
-        return res;
     }
-    vm.fail(loc,
-            "expected int or float argument "
-            "for int rightshift, found: ",
-            vm.getTypeName(args[1]));
-    return nullptr;
+    VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
+    mpz_t tmp;
+    mpz_init(tmp);
+    mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());
+    mpz_div_2exp(res->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), mpz_get_si(tmp));
+    mpz_clear(tmp);
+    return res;
 }
 
-Var *mpIntLShiftAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                     const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntAssnLShift, 1, false,
+           "  var.fn(other) -> var\n"
+           "Applies left shift operation on `var` using `other` and returns the updated `var`.")
 {
+    EXPECT_NO_CONST(args[0], "var");
+    EXPECT2(VarMPInt, VarMPFlt, args[1], "big int left-shift-assn");
     if(args[1]->is<VarMPInt>()) {
         mpz_mul_2exp(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
                      mpz_get_si(as<VarMPInt>(args[1])->getSrcPtr()));
         return args[0];
-    } else if(args[1]->is<VarMPFlt>()) {
-        mpz_t tmp;
-        mpz_init(tmp);
-        mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());
-        mpz_mul_2exp(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
-                     mpz_get_si(tmp));
-        mpz_clear(tmp);
-        return args[0];
     }
-    vm.fail(loc, "expected int or float argument for int leftshift-assign, found: ",
-            vm.getTypeName(args[1]));
-    return nullptr;
+    mpz_t tmp;
+    mpz_init(tmp);
+    mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());
+    mpz_mul_2exp(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
+                 mpz_get_si(tmp));
+    mpz_clear(tmp);
+    return args[0];
 }
 
-Var *mpIntRShiftAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                     const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntAssnRShift, 1, false,
+           "  var.fn(other) -> var\n"
+           "Applies right shift operation on `var` using `other` and returns the updated `var`.")
 {
+    EXPECT_NO_CONST(args[0], "var");
+    EXPECT2(VarMPInt, VarMPFlt, args[1], "big int right-shift-assn");
     if(args[1]->is<VarMPInt>()) {
         mpz_div_2exp(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
                      mpz_get_si(as<VarMPInt>(args[1])->getSrcPtr()));
         return args[0];
-    } else if(args[1]->is<VarMPFlt>()) {
-        mpz_t tmp;
-        mpz_init(tmp);
-        mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());
-        mpz_div_2exp(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
-                     mpz_get_si(tmp));
-        mpz_clear(tmp);
-        return args[0];
     }
-    vm.fail(loc, "expected int or float argument for int rightshift-assign, found: ",
-            vm.getTypeName(args[1]));
-    return nullptr;
+    mpz_t tmp;
+    mpz_init(tmp);
+    mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());
+    mpz_div_2exp(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(),
+                 mpz_get_si(tmp));
+    mpz_clear(tmp);
+    return args[0];
 }
 
-Var *mpIntPow(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-              const StringMap<AssnArgData> &assnArgs)
-{
-    if(args[1]->is<VarMPInt>()) {
-        VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
-        mpz_pow_ui(res->getPtr(), res->getSrcPtr(), mpz_get_ui(as<VarMPInt>(args[1])->getSrcPtr()));
-        return res;
-    } else if(args[1]->is<VarMPFlt>()) {
-        VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
-        mpz_t tmp;
-        mpz_init(tmp);
-        mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());
-        mpz_pow_ui(res->getPtr(), res->getSrcPtr(), mpz_get_ui(tmp));
-        mpz_clear(tmp);
-        return res;
-    }
-    vm.fail(loc, "expected int or float argument for int power, found: ", vm.getTypeName(args[1]));
-    return nullptr;
-}
-
-Var *mpIntRoot(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-               const StringMap<AssnArgData> &assnArgs)
-{
-    if(args[1]->is<VarMPInt>()) {
-        VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
-        mpz_root(res->getPtr(), res->getSrcPtr(), mpz_get_ui(as<VarMPInt>(args[1])->getSrcPtr()));
-        return res;
-    } else if(args[1]->is<VarMPFlt>()) {
-        VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
-        mpz_t tmp;
-        mpz_init(tmp);
-        mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());
-        mpz_root(res->getPtr(), res->getSrcPtr(), mpz_get_ui(tmp));
-        mpz_clear(tmp);
-        return res;
-    }
-    vm.fail(loc, "expected int or float argument for int root, found: ", vm.getTypeName(args[1]));
-    return nullptr;
-}
-
-Var *mpIntPreInc(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                 const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntPreInc, 0, false,
+           "  var.fn() -> var\n"
+           "Applies pre-increment on `var` and returns `var` itself.")
 {
     mpz_add_ui(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), 1);
     return args[0];
 }
 
-Var *mpIntPostInc(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                  const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntPostInc, 0, false,
+           "  var.fn() -> MPInt\n"
+           "Applies post-increment on `var` and returns a new MPInt with `var` - 1 as the result.")
 {
     VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
     mpz_add_ui(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), 1);
     return res;
 }
 
-Var *mpIntPreDec(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                 const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntPreDec, 0, false,
+           "  var.fn() -> var\n"
+           "Applies pre-decrement on `var` and returns `var` itself.")
 {
     mpz_sub_ui(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), 1);
     return args[0];
 }
 
-Var *mpIntPostDec(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                  const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntPostDec, 0, false,
+           "  var.fn() -> MPInt\n"
+           "Applies post-decrement on `var` and returns a new MPInt with `var` + 1 as the result.")
 {
     VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
     mpz_sub_ui(as<VarMPInt>(args[0])->getPtr(), as<VarMPInt>(args[0])->getSrcPtr(), 1);
     return res;
 }
 
-Var *mpIntUSub(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-               const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntUSub, 0, false,
+           "  var.fn() -> MPInt\n"
+           "Returns the negative equivalent of `var` as a new MPInt.")
 {
     VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
     mpz_neg(res->getPtr(), res->getSrcPtr());
     return res;
 }
 
-Var *mpIntPopCnt(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                 const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntPow, 1, false,
+           "  var.fn(other) -> MPInt\n"
+           "Raises `var` to the power of `other` and returns a new MPInt with the result.")
+{
+    EXPECT2(VarMPInt, VarMPFlt, args[1], "big int power");
+    if(args[1]->is<VarMPInt>()) {
+        VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
+        mpz_pow_ui(res->getPtr(), res->getSrcPtr(), mpz_get_ui(as<VarMPInt>(args[1])->getSrcPtr()));
+        return res;
+    }
+    VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
+    mpz_t tmp;
+    mpz_init(tmp);
+    mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());
+    mpz_pow_ui(res->getPtr(), res->getSrcPtr(), mpz_get_ui(tmp));
+    mpz_clear(tmp);
+    return res;
+}
+
+FERAL_FUNC(mpIntRoot, 1, false,
+           "  var.fn(other) -> MPInt\n"
+           "Lowers `var` to the root of `other` and returns a new MPInt with the result.")
+{
+    EXPECT2(VarMPInt, VarMPFlt, args[1], "big int root");
+    if(args[1]->is<VarMPInt>()) {
+        VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
+        mpz_root(res->getPtr(), res->getSrcPtr(), mpz_get_ui(as<VarMPInt>(args[1])->getSrcPtr()));
+        return res;
+    }
+    VarMPInt *res = vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
+    mpz_t tmp;
+    mpz_init(tmp);
+    mpfr_get_z(tmp, as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());
+    mpz_root(res->getPtr(), res->getSrcPtr(), mpz_get_ui(tmp));
+    mpz_clear(tmp);
+    return res;
+}
+
+FERAL_FUNC(mpIntPopCnt, 0, false,
+           "  var.fn() -> MPInt\n"
+           "Returns the number of set bits in `var` as a new MPInt.")
 {
     return vm.makeVar<VarMPInt>(loc, mpz_popcount(as<VarMPInt>(args[0])->getSrcPtr()));
 }
 
-Var *mpIntToInt(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntToInt, 0, false,
+           "  var.fn() -> Int\n"
+           "Converts `var` from MPInt to Int and returns the value.")
 {
     return vm.makeVar<VarMPInt>(loc, mpz_get_si(as<VarMPInt>(args[0])->getPtr()));
 }
 
-Var *mpIntToStr(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntToStr, 0, false,
+           "  var.fn() -> Str\n"
+           "Converts `var` from MPInt to Str and returns the value.")
 {
     typedef void (*gmp_freefunc_t)(void *, size_t);
 
@@ -695,28 +668,20 @@ bool VarMPIntIterator::next(mpz_ptr val)
     return true;
 }
 
-Var *mpIntRange(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntRange, 1, true,
+           "  fn(start, end, step) -> MPIntIterator\n"
+           "Creates an iterator which starts at `start`, ends at `end` (exclusive), and "
+           "increments/decrements by `step`.\n"
+           "If `end` and `step` are not provided, `start` becomes 0, `end` becomes the provided "
+           "`start`, and `step` becomes 1.")
 {
     Var *lhsBase  = args[1];
     Var *rhsBase  = args.size() > 2 ? args[2] : nullptr;
     Var *stepBase = args.size() > 3 ? args[3] : nullptr;
 
-    if(!lhsBase->is<VarMPInt>()) {
-        vm.fail(lhsBase->getLoc(),
-                "expected argument 1 to be of type int, found: ", vm.getTypeName(lhsBase));
-        return nullptr;
-    }
-    if(rhsBase && !rhsBase->is<VarMPInt>()) {
-        vm.fail(rhsBase->getLoc(),
-                "expected argument 2 to be of type int, found: ", vm.getTypeName(rhsBase));
-        return nullptr;
-    }
-    if(stepBase && !stepBase->is<VarMPInt>()) {
-        vm.fail(stepBase->getLoc(),
-                "expected argument 3 to be of type int, found: ", vm.getTypeName(stepBase));
-        return nullptr;
-    }
+    EXPECT(VarMPInt, lhsBase, "range start");
+    if(rhsBase) { EXPECT(VarMPInt, rhsBase, "range end"); }
+    if(stepBase) { EXPECT(VarMPInt, stepBase, "range step"); }
 
     mpz_t begin, end, step;
     mpz_inits(begin, end, step, NULL);
@@ -731,14 +696,14 @@ Var *mpIntRange(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return res;
 }
 
-Var *getMPIntIteratorNext(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                          const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(getMPIntIteratorNext, 0, false,
+           "  var.fn() -> MPInt\n"
+           "Fetch the next MPInt from the MPIntIterator `var`.\n"
+           "This function is mainly used by for-in loop.")
 {
     VarMPIntIterator *it = as<VarMPIntIterator>(args[0]);
     mpz_t _res;
-    if(!it->next(_res)) {
-        return vm.getNil();
-    }
+    if(!it->next(_res)) { return vm.getNil(); }
     VarMPInt *res = vm.makeVar<VarMPInt>(loc, _res);
     mpz_clear(_res);
     res->setLoadAsRef();
@@ -747,25 +712,11 @@ Var *getMPIntIteratorNext(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 
 // RNG
 
-Var *rngSeedInt(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpIntRngGet, 1, false,
+           "  fn(upto) -> MPInt\n"
+           "Returns a random number between [0, `upto`).")
 {
-    if(!args[1]->is<VarMPInt>()) {
-        vm.fail(loc, "expected seed value to be a big int, found: ", vm.getTypeName(args[1]));
-        return nullptr;
-    }
-    gmp_randseed(rngstate, as<VarMPInt>(args[1])->getPtr());
-    return vm.getNil();
-}
-
-// [0, to)
-Var *rngGetInt(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-               const StringMap<AssnArgData> &assnArgs)
-{
-    if(!args[1]->is<VarMPInt>()) {
-        vm.fail(loc, "expected upper bound to be an big int, found: ", vm.getTypeName(args[1]));
-        return nullptr;
-    }
+    EXPECT(VarMPInt, args[1], "upper limit");
     VarMPInt *res = vm.makeVar<VarMPInt>(loc, 0);
     mpz_urandomm(res->getPtr(), rngstate, as<VarMPInt>(args[1])->getPtr());
     return res;
@@ -775,22 +726,13 @@ Var *rngGetInt(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 //////////////////////////////////////// Float Functions /////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-Var *mpFltNewNative(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                    const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpFltNewNative, 1, false,
+           "  fn(value) -> MPFlt\n"
+           "Creates and returns a new MPFlt with `value`.\n"
+           "Here `value` can be any of Flt / Str / MPInt / MPFlt")
 {
-    if(!args[1]->is<VarFlt>() && !args[1]->is<VarStr>() && !args[1]->is<VarMPInt>() &&
-       !args[1]->is<VarMPFlt>())
-    {
-        vm.fail(loc,
-                "argument 1 to bignum.newFlt() must be of "
-                "type 'flt', 'str', 'bigint', or 'bigflt', found: ",
-                vm.getTypeName(args[1]));
-        return nullptr;
-    }
-
-    if(args[1]->is<VarFlt>()) {
-        return vm.makeVar<VarMPFlt>(loc, as<VarFlt>(args[1])->getVal());
-    }
+    EXPECT4(VarFlt, VarStr, VarMPInt, VarMPFlt, args[1], "initial value");
+    if(args[1]->is<VarFlt>()) { return vm.makeVar<VarMPFlt>(loc, as<VarFlt>(args[1])->getVal()); }
     if(args[1]->is<VarStr>()) {
         return vm.makeVar<VarMPFlt>(loc, as<VarStr>(args[1])->getVal().c_str());
     }
@@ -800,75 +742,71 @@ Var *mpFltNewNative(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return vm.makeVar<VarMPFlt>(loc, as<VarMPFlt>(args[1])->getSrcPtr());
 }
 
-#define ARITHF_FUNC(fn, name, namez)                                                         \
-    Var *mpFlt##fn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,                      \
-                   const StringMap<AssnArgData> &assnArgs)                                   \
-    {                                                                                        \
-        if(args[1]->is<VarMPInt>()) {                                                        \
-            VarMPFlt *res = vm.makeVar<VarMPFlt>(loc, as<VarMPFlt>(args[0])->getPtr());      \
-            mpfr_##namez(res->getPtr(), res->getSrcPtr(), as<VarMPInt>(args[1])->getPtr(),   \
-                         mpfr_get_default_rounding_mode());                                  \
-            return res;                                                                      \
-        } else if(args[1]->is<VarMPFlt>()) {                                                 \
-            VarMPFlt *res = vm.makeVar<VarMPFlt>(loc, as<VarMPFlt>(args[0])->getPtr());      \
-            mpfr_##name(res->getPtr(), res->getSrcPtr(), as<VarMPFlt>(args[1])->getSrcPtr(), \
-                        mpfr_get_default_rounding_mode());                                   \
-            return res;                                                                      \
-        }                                                                                    \
-        vm.fail(loc, "expected mpInt or mpFlt arg for mpFlt " STRINGIFY(name) ", found: ",   \
-                vm.getTypeName(args[1]));                                                    \
-        return nullptr;                                                                      \
+#define ARITHF_FUNC(fn, name, namez)                                                       \
+    FERAL_FUNC(mpFlt##fn, 1, false,                                                        \
+               "  var.fn(other) -> MPFlt\n"                                                \
+               "Applies arithmetic-" STRINGIFY(                                            \
+                   name) " on `var` and `other` and returns a new MPFlt with the result.") \
+    {                                                                                      \
+        EXPECT2(VarMPInt, VarMPFlt, args[1], "big float " STRINGIFY(name));                \
+        if(args[1]->is<VarMPInt>()) {                                                      \
+            VarMPFlt *res = vm.makeVar<VarMPFlt>(loc, as<VarMPFlt>(args[0])->getPtr());    \
+            mpfr_##namez(res->getPtr(), res->getSrcPtr(), as<VarMPInt>(args[1])->getPtr(), \
+                         mpfr_get_default_rounding_mode());                                \
+            return res;                                                                    \
+        }                                                                                  \
+        VarMPFlt *res = vm.makeVar<VarMPFlt>(loc, as<VarMPFlt>(args[0])->getPtr());        \
+        mpfr_##name(res->getPtr(), res->getSrcPtr(), as<VarMPFlt>(args[1])->getSrcPtr(),   \
+                    mpfr_get_default_rounding_mode());                                     \
+        return res;                                                                        \
     }
 
-#define ARITHF_ASSN_FUNC(fn, name, namez)                                                       \
-    Var *mpFltAssn##fn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,                     \
-                       const StringMap<AssnArgData> &assnArgs)                                  \
+#define ARITHF_ASSN_FUNC(fn, name, namez)                                                     \
+    FERAL_FUNC(mpFltAssn##fn, 1, false,                                                       \
+               "  var.fn(other) -> var\n"                                                     \
+               "Applies arithmetic-" STRINGIFY(                                               \
+                   name) " on `var` with `other` and returns the updated `var`.")             \
+    {                                                                                         \
+        EXPECT_NO_CONST(args[0], "var");                                                      \
+        EXPECT2(VarMPInt, VarMPFlt, args[1], "big float " STRINGIFY(name) "-assn");           \
+        if(args[1]->is<VarMPInt>()) {                                                         \
+            mpfr_##namez(as<VarMPFlt>(args[0])->getPtr(), as<VarMPFlt>(args[0])->getSrcPtr(), \
+                         as<VarMPInt>(args[1])->getPtr(), mpfr_get_default_rounding_mode());  \
+            return args[0];                                                                   \
+        }                                                                                     \
+        mpfr_##name(as<VarMPFlt>(args[0])->getPtr(), as<VarMPFlt>(args[0])->getSrcPtr(),      \
+                    as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());    \
+        return args[0];                                                                       \
+    }
+
+#define LOGICF_FUNC(fn, name, checksym)                                                         \
+    FERAL_FUNC(mpFlt##fn, 1, false,                                                             \
+               "  var.fn(other) -> Bool\n"                                                      \
+               "Applies logical '" STRINGIFY(                                                   \
+                   name) "' between `var` and `other` and returns the resulting Bool.")         \
     {                                                                                           \
-        if(args[1]->is<VarMPInt>()) {                                                           \
-            mpfr_##namez(as<VarMPFlt>(args[0])->getPtr(), as<VarMPFlt>(args[0])->getSrcPtr(),   \
-                         as<VarMPInt>(args[1])->getPtr(), mpfr_get_default_rounding_mode());    \
-            return args[0];                                                                     \
-        } else if(args[1]->is<VarMPFlt>()) {                                                    \
-            mpfr_##name(as<VarMPFlt>(args[0])->getPtr(), as<VarMPFlt>(args[0])->getSrcPtr(),    \
-                        as<VarMPFlt>(args[1])->getSrcPtr(), mpfr_get_default_rounding_mode());  \
-            return args[0];                                                                     \
+        EXPECT4(VarInt, VarFlt, VarMPInt, VarMPFlt, args[1],                                    \
+                "big float logical " STRINGIFY(name));                                          \
+        if(args[1]->is<VarInt>()) {                                                             \
+            return mpfr_cmp_si(as<VarMPFlt>(args[0])->getPtr(), as<VarInt>(args[1])->getVal())  \
+                           checksym 0                                                           \
+                       ? vm.getTrue()                                                           \
+                       : vm.getFalse();                                                         \
+        } else if(args[1]->is<VarFlt>()) {                                                      \
+            return mpfr_cmp_ld(as<VarMPFlt>(args[0])->getPtr(), as<VarFlt>(args[1])->getVal())  \
+                           checksym 0                                                           \
+                       ? vm.getTrue()                                                           \
+                       : vm.getFalse();                                                         \
+        } else if(args[1]->is<VarMPInt>()) {                                                    \
+            return mpfr_cmp_z(as<VarMPFlt>(args[0])->getSrcPtr(),                               \
+                              as<VarMPInt>(args[1])->getSrcPtr()) checksym 0                    \
+                       ? vm.getTrue()                                                           \
+                       : vm.getFalse();                                                         \
         }                                                                                       \
-        vm.fail(loc, "expected mpInt or mpFlt arg for mpFlt " STRINGIFY(name) "-assn, found: ", \
-                vm.getTypeName(args[1]));                                                       \
-        return nullptr;                                                                         \
-    }
-
-#define LOGICF_FUNC(name, checksym)                                                            \
-    Var *mpFlt##name(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,                      \
-                     const StringMap<AssnArgData> &assnArgs)                                   \
-    {                                                                                          \
-        if(args[1]->is<VarInt>()) {                                                            \
-            return mpfr_cmp_si(as<VarMPFlt>(args[0])->getPtr(), as<VarInt>(args[1])->getVal()) \
-                           checksym 0                                                          \
-                       ? vm.getTrue()                                                          \
-                       : vm.getFalse();                                                        \
-        }                                                                                      \
-        if(args[1]->is<VarFlt>()) {                                                            \
-            return mpfr_cmp_ld(as<VarMPFlt>(args[0])->getPtr(), as<VarFlt>(args[1])->getVal()) \
-                           checksym 0                                                          \
-                       ? vm.getTrue()                                                          \
-                       : vm.getFalse();                                                        \
-        }                                                                                      \
-        if(args[1]->is<VarMPInt>()) {                                                          \
-            return mpfr_cmp_z(as<VarMPFlt>(args[0])->getSrcPtr(),                              \
-                              as<VarMPInt>(args[1])->getSrcPtr()) checksym 0                   \
-                       ? vm.getTrue()                                                          \
-                       : vm.getFalse();                                                        \
-        }                                                                                      \
-        if(args[1]->is<VarMPFlt>()) {                                                          \
-            return mpfr_cmp(as<VarMPFlt>(args[0])->getSrcPtr(),                                \
-                            as<VarMPFlt>(args[1])->getSrcPtr()) checksym 0                     \
-                       ? vm.getTrue()                                                          \
-                       : vm.getFalse();                                                        \
-        }                                                                                      \
-        vm.fail(loc, "expected mpFlt arg for mpFlt " STRINGIFY(name) ", found: ",              \
-                vm.getTypeName(args[1]));                                                      \
-        return nullptr;                                                                        \
+        return mpfr_cmp(as<VarMPFlt>(args[0])->getSrcPtr(), as<VarMPFlt>(args[1])->getSrcPtr()) \
+                       checksym 0                                                               \
+                   ? vm.getTrue()                                                               \
+                   : vm.getFalse();                                                             \
     }
 
 ARITHF_FUNC(Add, add, add_z)
@@ -881,13 +819,14 @@ ARITHF_ASSN_FUNC(Sub, sub, sub_z)
 ARITHF_ASSN_FUNC(Mul, mul, mul_z)
 ARITHF_ASSN_FUNC(Div, div, div_z)
 
-LOGICF_FUNC(LT, <)
-LOGICF_FUNC(GT, >)
-LOGICF_FUNC(LE, <=)
-LOGICF_FUNC(GE, >=)
+LOGICF_FUNC(LT, lt, <)
+LOGICF_FUNC(GT, gt, >)
+LOGICF_FUNC(LE, le, <=)
+LOGICF_FUNC(GE, ge, >=)
 
-Var *mpFltEQ(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-             const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpFltEQ, 1, false,
+           "  var.fn(other) -> Bool\n"
+           "Returns `true` if `var` and `other` are equal.")
 {
     if(!args[1]->is<VarMPFlt>()) return vm.getFalse();
     return mpfr_cmp(as<VarMPFlt>(args[0])->getPtr(), as<VarMPFlt>(args[1])->getPtr()) == 0
@@ -895,8 +834,9 @@ Var *mpFltEQ(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
                : vm.getFalse();
 }
 
-Var *mpFltNE(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-             const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpFltNE, 1, false,
+           "  var.fn(other) -> Bool\n"
+           "Returns `true` if `var` and `other` are not equal.")
 {
     if(!args[1]->is<VarMPFlt>()) return vm.getTrue();
     return mpfr_cmp(as<VarMPFlt>(args[0])->getPtr(), as<VarMPFlt>(args[1])->getPtr()) != 0
@@ -904,16 +844,18 @@ Var *mpFltNE(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
                : vm.getFalse();
 }
 
-Var *mpFltPreInc(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                 const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpFltPreInc, 0, false,
+           "  var.fn() -> var\n"
+           "Applies pre-increment on `var` and returns `var` itself.")
 {
     mpfr_add_ui(as<VarMPFlt>(args[0])->getPtr(), as<VarMPFlt>(args[0])->getSrcPtr(), 1,
                 mpfr_get_default_rounding_mode());
     return args[0];
 }
 
-Var *mpFltPostInc(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                  const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpFltPostInc, 0, false,
+           "  var.fn() -> MPFlt\n"
+           "Applies post-increment on `var` and returns a new MPFlt with `var` - 1 as the result.")
 {
     VarMPFlt *res = vm.makeVar<VarMPFlt>(loc, as<VarMPFlt>(args[0])->getPtr());
     mpfr_add_ui(as<VarMPFlt>(args[0])->getPtr(), as<VarMPFlt>(args[0])->getSrcPtr(), 1,
@@ -921,16 +863,18 @@ Var *mpFltPostInc(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return res;
 }
 
-Var *mpFltPreDec(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                 const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpFltPreDec, 0, false,
+           "  var.fn() -> var\n"
+           "Applies pre-decrement on `var` and returns `var` itself.")
 {
     mpfr_sub_ui(as<VarMPFlt>(args[0])->getPtr(), as<VarMPFlt>(args[0])->getSrcPtr(), 1,
                 mpfr_get_default_rounding_mode());
     return args[0];
 }
 
-Var *mpFltPostDec(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                  const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpFltPostDec, 0, false,
+           "  var.fn() -> MPFlt\n"
+           "Applies post-decrement on `var` and returns a new MPFlt with `var` + 1 as the result.")
 {
     VarMPFlt *res = vm.makeVar<VarMPFlt>(loc, as<VarMPFlt>(args[0])->getPtr());
     mpfr_sub_ui(as<VarMPFlt>(args[0])->getPtr(), as<VarMPFlt>(args[0])->getSrcPtr(), 1,
@@ -938,42 +882,40 @@ Var *mpFltPostDec(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return res;
 }
 
-Var *mpFltUSub(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-               const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpFltUSub, 0, false,
+           "  var.fn() -> MPFlt\n"
+           "Returns the negative equivalent of `var` as a new MPFlt.")
 {
     VarMPFlt *res = vm.makeVar<VarMPFlt>(loc, as<VarMPFlt>(args[0])->getPtr());
     mpfr_neg(res->getPtr(), as<VarMPFlt>(args[0])->getSrcPtr(), mpfr_get_default_rounding_mode());
     return res;
 }
 
-Var *mpFltRound(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpFltRound, 0, false,
+           "  var.fn() -> MPInt\n"
+           "Rounds `var` to the closest whole number and returns it as a new MPInt.")
 {
     VarMPInt *res = vm.makeVar<VarMPInt>(loc, 0);
     mpfr_get_z(res->getPtr(), as<VarMPFlt>(args[0])->getSrcPtr(), MPFR_RNDN);
     return res;
 }
 
-Var *mpFltPow(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-              const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpFltPow, 1, false,
+           "  var.fn(other) -> MPFlt\n"
+           "Raises `var` to the power of `other` and returns a new MPFlt with the result.")
 {
-    if(!args[1]->is<VarMPInt>()) {
-        vm.fail(loc, "power must be an integer, found: ", vm.getTypeName(args[1]));
-        return nullptr;
-    }
+    EXPECT(VarMPInt, args[1], "power");
     VarMPFlt *res = vm.makeVar<VarMPFlt>(loc, 0);
     mpfr_pow_si(res->getPtr(), as<VarMPFlt>(args[0])->getSrcPtr(),
                 mpz_get_si(as<VarMPInt>(args[1])->getPtr()), MPFR_RNDN);
     return res;
 }
 
-Var *mpFltRoot(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-               const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpFltRoot, 1, false,
+           "  var.fn(other) -> MPFlt\n"
+           "Lowers `var` to the root of `other` and returns a new MPFlt with the result.")
 {
-    if(!args[1]->is<VarMPInt>()) {
-        vm.fail(loc, "root must be an integer, found: ", vm.getTypeName(args[1]));
-        return nullptr;
-    }
+    EXPECT(VarMPInt, args[1], "root");
     VarMPFlt *res = vm.makeVar<VarMPFlt>(loc, 0);
 #if MPFR_VERSION_MAJOR >= 4
     mpfr_rootn_ui(res->getPtr(), as<VarMPFlt>(args[0])->getPtr(),
@@ -985,14 +927,16 @@ Var *mpFltRoot(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return res;
 }
 
-Var *mpFltToFlt(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpFltToFlt, 0, false,
+           "  var.fn() -> Flt\n"
+           "Converts `var` from MPInt to Flt and returns the value.")
 {
     return vm.makeVar<VarFlt>(loc, mpfr_get_d(as<VarMPFlt>(args[0])->getPtr(), MPFR_RNDN));
 }
 
-Var *mpFltToStr(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpFltToStr, 0, false,
+           "  var.fn() -> Str\n"
+           "Converts `var` from MPFlt to Str and returns the value.")
 {
     mpfr_exp_t expo;
     char *_res  = mpfr_get_str(NULL, &expo, 10, 0, as<VarMPFlt>(args[0])->getSrcPtr(),
@@ -1004,9 +948,7 @@ Var *mpFltToStr(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     if(last_zero_from_end != String::npos) res->getVal().erase(last_zero_from_end + 1);
     if(expo > 0) {
         size_t sz = res->getVal().size();
-        while(expo > sz) {
-            res->getVal() += '0';
-        }
+        while(expo > sz) { res->getVal() += '0'; }
         if(res->getVal()[0] == '-') ++expo;
         res->getVal().insert(expo, ".");
     } else {
@@ -1022,14 +964,11 @@ Var *mpFltToStr(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 
 // RNG
 
-// [0.0, to]
-Var *rngGetFlt(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-               const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpFltRngGet, 1, false,
+           "  fn(upto) -> MPFlt\n"
+           "Returns a random number between [0.0, `upto`].")
 {
-    if(!args[1]->is<VarMPFlt>()) {
-        vm.fail(loc, "expected upper bound to be a big float, found: ", vm.getTypeName(args[1]));
-        return nullptr;
-    }
+    EXPECT(VarMPFlt, args[1], "upper bound");
     VarMPFlt *res = vm.makeVar<VarMPFlt>(loc, 0.0);
     mpfr_urandom(res->getPtr(), rngstate, MPFR_RNDN);
     mpfr_mul(res->getPtr(), res->getSrcPtr(), as<VarMPFlt>(args[1])->getSrcPtr(), MPFR_RNDN);
@@ -1040,27 +979,13 @@ Var *rngGetFlt(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
 //////////////////////////////////////// Complex Functions ///////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-Var *mpComplexNewNative(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                        const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpComplexNewNative, 2, false,
+           "  fn(real, virtual) -> MPComplex\n"
+           "Creates and returns a new MPFlt using `real` and `virtual` value.\n"
+           "Here `real` and `virtual` can be either of MPInt / MPFlt")
 {
-    if(!args[1]->is<VarInt>() && !args[1]->is<VarFlt>() && !args[1]->is<VarMPInt>() &&
-       !args[1]->is<VarMPFlt>())
-    {
-        vm.fail(loc,
-                "argument 1 to mp.newComplex() must be of type "
-                "'int', 'flt', 'mpInt', or 'mpFlt', found: ",
-                vm.getTypeName(args[1]));
-        return nullptr;
-    }
-    if(!args[2]->is<VarInt>() && !args[2]->is<VarFlt>() && !args[2]->is<VarInt>() &&
-       !args[2]->is<VarFlt>())
-    {
-        vm.fail(loc,
-                "argument 2 to mp.newComplex() must be of type "
-                "'int', 'flt', 'mpInt', or 'mpFlt', found: ",
-                vm.getTypeName(args[2]));
-        return nullptr;
-    }
+    EXPECT4(VarInt, VarFlt, VarMPInt, VarMPFlt, args[1], "real value");
+    EXPECT4(VarInt, VarFlt, VarMPInt, VarMPFlt, args[2], "virtual value");
     if(args[1]->getType() != args[2]->getType()) {
         vm.fail(loc, "the real and imaginary arguments must be of same time, found: (",
                 vm.getTypeName(args[1]), ", ", vm.getTypeName(args[1]), ")");
@@ -1088,34 +1013,32 @@ Var *mpComplexNewNative(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return res;
 }
 
-#define LOGICC_FUNC(name, sym)                                                \
-    Var *mpComplex##name(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args, \
-                         const StringMap<AssnArgData> &assnArgs)              \
-    {                                                                         \
-        if(args[1]->is<VarMPComplex>()) {                                     \
-            return mpc_cmp(as<VarMPComplex>(args[0])->getSrcPtr(),            \
-                           as<VarMPComplex>(args[1])->getSrcPtr()) sym 0      \
-                       ? vm.getTrue()                                         \
-                       : vm.getFalse();                                       \
-        }                                                                     \
-        return vm.getFalse();                                                 \
+#define LOGICC_FUNC(fn, name, sym)                                                      \
+    FERAL_FUNC(mpComplex##fn, 1, false,                                                 \
+               "  var.fn(other) -> Bool\n"                                              \
+               "Applies logical '" STRINGIFY(                                           \
+                   name) "' between `var` and `other` and returns the resulting Bool.") \
+    {                                                                                   \
+        if(args[1]->is<VarMPComplex>()) {                                               \
+            return mpc_cmp(as<VarMPComplex>(args[0])->getSrcPtr(),                      \
+                           as<VarMPComplex>(args[1])->getSrcPtr()) sym 0                \
+                       ? vm.getTrue()                                                   \
+                       : vm.getFalse();                                                 \
+        }                                                                               \
+        return vm.getFalse();                                                           \
     }
 
-LOGICC_FUNC(Lt, <)
-LOGICC_FUNC(Gt, >)
-LOGICC_FUNC(Le, <=)
-LOGICC_FUNC(Ge, >=)
+LOGICC_FUNC(LT, lt, <)
+LOGICC_FUNC(GT, gt, >)
+LOGICC_FUNC(LE, le, <=)
+LOGICC_FUNC(GE, ge, >=)
 
-Var *mpComplexAdd(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                  const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(
+    mpComplexAdd, 1, false,
+    "  var.fn(other) -> MPComplex\n"
+    "Applies arithmetic-add on `var` and `other` and returns a new MPComplex with the result.")
 {
-    if(!args[1]->is<VarInt>() && !args[1]->is<VarMPFlt>() && !args[1]->is<VarMPComplex>()) {
-        vm.fail(loc,
-                "argument 1 to complex arithmetic must be of "
-                "type 'int', 'mpFlt', or 'complex', found: ",
-                vm.getTypeName(args[1]));
-        return nullptr;
-    }
+    EXPECT3(VarInt, VarMPFlt, VarMPComplex, args[1], "complex addition");
     VarMPComplex *res = vm.makeVar<VarMPComplex>(loc);
     if(args[1]->is<VarInt>()) {
         mpc_add_si(res->getPtr(), as<VarMPComplex>(args[0])->getSrcPtr(),
@@ -1130,16 +1053,12 @@ Var *mpComplexAdd(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return res;
 }
 
-Var *mpComplexSub(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                  const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(
+    mpComplexSub, 1, false,
+    "  var.fn(other) -> MPComplex\n"
+    "Applies arithmetic-sub on `var` and `other` and returns a new MPComplex with the result.")
 {
-    if(!args[1]->is<VarInt>() && !args[1]->is<VarMPFlt>() && !args[1]->is<VarMPComplex>()) {
-        vm.fail(loc,
-                "argument 1 to complex arithmetic must be of "
-                "type 'int', 'mpFlt', or 'complex', found: ",
-                vm.getTypeName(args[1]));
-        return nullptr;
-    }
+    EXPECT3(VarInt, VarMPFlt, VarMPComplex, args[1], "complex subtraction");
     VarMPComplex *res = vm.makeVar<VarMPComplex>(loc);
     if(args[1]->is<VarInt>()) {
         mpc_sub_ui(res->getPtr(), as<VarMPComplex>(args[0])->getSrcPtr(),
@@ -1154,16 +1073,12 @@ Var *mpComplexSub(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return res;
 }
 
-Var *mpComplexMul(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                  const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(
+    mpComplexMul, 1, false,
+    "  var.fn(other) -> MPComplex\n"
+    "Applies arithmetic-mul on `var` and `other` and returns a new MPComplex with the result.")
 {
-    if(!args[1]->is<VarInt>() && !args[1]->is<VarMPFlt>() && !args[1]->is<VarMPComplex>()) {
-        vm.fail(loc,
-                "argument 1 to complex arithmetic must be of "
-                "type 'int', 'mpFlt', or 'complex', found: ",
-                vm.getTypeName(args[1]));
-        return nullptr;
-    }
+    EXPECT3(VarInt, VarMPFlt, VarMPComplex, args[1], "complex multiplication");
     VarMPComplex *res = vm.makeVar<VarMPComplex>(loc);
     if(args[1]->is<VarInt>()) {
         mpc_mul_si(res->getPtr(), as<VarMPComplex>(args[0])->getSrcPtr(),
@@ -1178,16 +1093,12 @@ Var *mpComplexMul(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return res;
 }
 
-Var *mpComplexDiv(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                  const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(
+    mpComplexDiv, 1, false,
+    "  var.fn(other) -> MPComplex\n"
+    "Applies arithmetic-div on `var` and `other` and returns a new MPComplex with the result.")
 {
-    if(!args[1]->is<VarInt>() && !args[1]->is<VarMPFlt>() && !args[1]->is<VarMPComplex>()) {
-        vm.fail(loc,
-                "argument 1 to complex arithmetic must be of "
-                "type 'int', 'mpFlt', or 'complex', found: ",
-                vm.getTypeName(args[1]));
-        return nullptr;
-    }
+    EXPECT3(VarInt, VarMPFlt, VarMPComplex, args[1], "complex division");
     VarMPComplex *res = vm.makeVar<VarMPComplex>(loc);
     if(args[1]->is<VarInt>()) {
         mpc_div_ui(res->getPtr(), as<VarMPComplex>(args[0])->getSrcPtr(),
@@ -1202,16 +1113,12 @@ Var *mpComplexDiv(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return res;
 }
 
-Var *mpComplexAddAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                      const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpComplexAssnAdd, 1, false,
+           "  var.fn(other) -> var\n"
+           "Applies arithmetic-add on `var` with `other` and returns the updated `var`.")
 {
-    if(!args[1]->is<VarInt>() && !args[1]->is<VarMPFlt>() && !args[1]->is<VarMPComplex>()) {
-        vm.fail(loc,
-                "argument 1 to complex arithmetic must be of "
-                "type 'int', 'mpFlt', or 'complex', found: ",
-                vm.getTypeName(args[1]));
-        return nullptr;
-    }
+    EXPECT_NO_CONST(args[0], "var");
+    EXPECT3(VarInt, VarMPFlt, VarMPComplex, args[1], "complex addition-assn");
     VarMPComplex *base = as<VarMPComplex>(args[0]);
     if(args[1]->is<VarInt>()) {
         mpc_add_si(base->getPtr(), base->getSrcPtr(), as<VarInt>(args[1])->getVal(),
@@ -1226,16 +1133,12 @@ Var *mpComplexAddAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return base;
 }
 
-Var *mpComplexSubAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                      const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpComplexAssnSub, 1, false,
+           "  var.fn(other) -> var\n"
+           "Applies arithmetic-sub on `var` with `other` and returns the updated `var`.")
 {
-    if(!args[1]->is<VarInt>() && !args[1]->is<VarMPFlt>() && !args[1]->is<VarMPComplex>()) {
-        vm.fail(loc,
-                "argument 1 to complex arithmetic must be of "
-                "type 'int', 'mpFlt', or 'complex', found: ",
-                vm.getTypeName(args[1]));
-        return nullptr;
-    }
+    EXPECT_NO_CONST(args[0], "var");
+    EXPECT3(VarInt, VarMPFlt, VarMPComplex, args[1], "complex subtraction-assn");
     VarMPComplex *base = as<VarMPComplex>(args[0]);
     if(args[1]->is<VarInt>()) {
         mpc_sub_ui(base->getPtr(), base->getSrcPtr(), as<VarInt>(args[1])->getVal(),
@@ -1250,16 +1153,12 @@ Var *mpComplexSubAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return base;
 }
 
-Var *mpComplexMulAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                      const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpComplexAssnMul, 1, false,
+           "  var.fn(other) -> var\n"
+           "Applies arithmetic-mul on `var` with `other` and returns the updated `var`.")
 {
-    if(!args[1]->is<VarInt>() && !args[1]->is<VarMPFlt>() && !args[1]->is<VarMPComplex>()) {
-        vm.fail(loc,
-                "argument 1 to complex arithmetic must be of "
-                "type 'int', 'mpFlt', or 'complex', found: ",
-                vm.getTypeName(args[1]));
-        return nullptr;
-    }
+    EXPECT_NO_CONST(args[0], "var");
+    EXPECT3(VarInt, VarMPFlt, VarMPComplex, args[1], "complex multiplication-assn");
     VarMPComplex *base = as<VarMPComplex>(args[0]);
     if(args[1]->is<VarInt>()) {
         mpc_mul_si(base->getPtr(), base->getSrcPtr(), as<VarInt>(args[1])->getVal(),
@@ -1274,16 +1173,12 @@ Var *mpComplexMulAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return base;
 }
 
-Var *mpComplexDivAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                      const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpComplexAssnDiv, 1, false,
+           "  var.fn(other) -> var\n"
+           "Applies arithmetic-div on `var` with `other` and returns the updated `var`.")
 {
-    if(!args[1]->is<VarInt>() && !args[1]->is<VarMPFlt>() && !args[1]->is<VarMPComplex>()) {
-        vm.fail(loc,
-                "argument 1 to complex arithmetic must be of "
-                "type 'int', 'mpFlt', or 'complex', found: ",
-                vm.getTypeName(args[1]));
-        return nullptr;
-    }
+    EXPECT_NO_CONST(args[0], "var");
+    EXPECT3(VarInt, VarMPFlt, VarMPComplex, args[1], "complex division-assn");
     VarMPComplex *base = as<VarMPComplex>(args[0]);
     if(args[1]->is<VarInt>()) {
         mpc_div_ui(base->getPtr(), base->getSrcPtr(), as<VarInt>(args[1])->getVal(),
@@ -1298,8 +1193,9 @@ Var *mpComplexDivAssn(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return base;
 }
 
-Var *mpComplexEq(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                 const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpComplexEQ, 1, false,
+           "  var.fn(other) -> Bool\n"
+           "Returns `true` if `var` and `other` are equal.")
 {
     if(args[1]->is<VarMPComplex>()) {
         return mpc_cmp(as<VarMPComplex>(args[0])->getSrcPtr(),
@@ -1310,8 +1206,9 @@ Var *mpComplexEq(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return vm.getFalse();
 }
 
-Var *mpComplexNe(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                 const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpComplexNE, 1, false,
+           "  var.fn(other) -> Bool\n"
+           "Returns `true` if `var` and `other` are not equal.")
 {
     if(args[1]->is<VarMPComplex>()) {
         return mpc_cmp(as<VarMPComplex>(args[0])->getSrcPtr(),
@@ -1322,16 +1219,19 @@ Var *mpComplexNe(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return vm.getTrue();
 }
 
-Var *mpComplexPreInc(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                     const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpComplexPreInc, 0, false,
+           "  var.fn() -> var\n"
+           "Applies pre-increment on `var` and returns `var` itself.")
 {
     mpc_add_ui(as<VarMPComplex>(args[0])->getPtr(), as<VarMPComplex>(args[0])->getSrcPtr(), 1,
                mpc_get_default_rounding_mode());
     return args[0];
 }
 
-Var *mpComplexPostInc(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                      const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(
+    mpComplexPostInc, 0, false,
+    "  var.fn() -> MPComplex\n"
+    "Applies post-increment on `var` and returns a new MPComplex with `var` - 1 as the result.")
 {
     VarMPComplex *res = vm.makeVar<VarMPComplex>(loc, as<VarMPComplex>(args[0])->getSrcPtr());
     mpc_add_ui(as<VarMPComplex>(args[0])->getPtr(), as<VarMPComplex>(args[0])->getSrcPtr(), 1,
@@ -1339,16 +1239,19 @@ Var *mpComplexPostInc(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return res;
 }
 
-Var *mpComplexPreDec(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                     const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpComplexPreDec, 0, false,
+           "  var.fn() -> var\n"
+           "Applies pre-decrement on `var` and returns `var` itself.")
 {
     mpc_sub_ui(as<VarMPComplex>(args[0])->getPtr(), as<VarMPComplex>(args[0])->getSrcPtr(), 1,
                mpc_get_default_rounding_mode());
     return args[0];
 }
 
-Var *mpComplexPostDec(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                      const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(
+    mpComplexPostDec, 0, false,
+    "  var.fn() -> MPComplex\n"
+    "Applies post-decrement on `var` and returns a new MPComplex with `var` + 1 as the result.")
 {
     VarMPComplex *res = vm.makeVar<VarMPComplex>(loc, as<VarMPComplex>(args[0])->getSrcPtr());
     mpc_sub_ui(as<VarMPComplex>(args[0])->getPtr(), as<VarMPComplex>(args[0])->getSrcPtr(), 1,
@@ -1356,24 +1259,20 @@ Var *mpComplexPostDec(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return res;
 }
 
-Var *mpComplexUSub(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                   const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpComplexUSub, 0, false,
+           "  var.fn() -> MPComplex\n"
+           "Returns the negative equivalent of `var` as a new MPComplex.")
 {
     VarMPComplex *res = vm.makeVar<VarMPComplex>(loc, as<VarMPComplex>(args[0])->getSrcPtr());
     mpc_neg(res->getPtr(), as<VarMPComplex>(args[0])->getSrcPtr(), mpc_get_default_rounding_mode());
     return res;
 }
 
-Var *mpComplexPow(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                  const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpComplexPow, 1, false,
+           "  var.fn(other) -> MPComplex\n"
+           "Raises `var` to the power of `other` and returns a new MPComplex with the result.")
 {
-    if(!args[1]->is<VarInt>() && !args[1]->is<VarFlt>() && !args[1]->is<VarMPInt>() &&
-       !args[1]->is<VarMPFlt>())
-    {
-        vm.fail(loc, "power must be an 'int' 'flt', 'mpInt' or 'mpFlt', found: ",
-                vm.getTypeName(args[1]));
-        return nullptr;
-    }
+    EXPECT4(VarInt, VarFlt, VarMPInt, VarMPFlt, args[1], "complex power");
     VarMPComplex *res = vm.makeVar<VarMPComplex>(loc, as<VarMPComplex>(args[0])->getSrcPtr());
     if(args[1]->is<VarInt>())
         mpc_pow_si(res->getPtr(), as<VarMPComplex>(args[0])->getSrcPtr(),
@@ -1390,8 +1289,9 @@ Var *mpComplexPow(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return res;
 }
 
-Var *mpComplexAbs(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                  const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpComplexAbs, 0, false,
+           "  var.fn() -> MPFlt\n"
+           "Returns the absolute float value of `var` as a new MPFlt.")
 {
     VarMPFlt *res = vm.makeVar<VarMPFlt>(loc, 0.0);
     mpc_abs(res->getPtr(), as<VarMPComplex>(args[0])->getSrcPtr(),
@@ -1399,27 +1299,12 @@ Var *mpComplexAbs(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
     return res;
 }
 
-Var *mpComplexSet(VirtualMachine &vm, ModuleLoc loc, Span<Var *> args,
-                  const StringMap<AssnArgData> &assnArgs)
+FERAL_FUNC(mpComplexSet, 2, false,
+           "  var.fn(real, virtual) -> var\n"
+           "Updates the `real` and `virtual` parts of the MPComplex `var` and returns itself.")
 {
-    if(!args[1]->is<VarInt>() && !args[1]->is<VarFlt>() && !args[1]->is<VarMPInt>() &&
-       !args[1]->is<VarMPFlt>())
-    {
-        vm.fail(loc,
-                "argument 1 to mp.newComplex() must be of type "
-                "'int', 'flt', 'mpInt', or 'mpFlt', found: ",
-                vm.getTypeName(args[1]));
-        return nullptr;
-    }
-    if(!args[2]->is<VarInt>() && !args[2]->is<VarFlt>() && !args[2]->is<VarInt>() &&
-       !args[2]->is<VarFlt>())
-    {
-        vm.fail(loc,
-                "argument 2 to mp.newComplex() must be of type "
-                "'int', 'flt', 'mpInt', or 'mpFlt', found: ",
-                vm.getTypeName(args[2]));
-        return nullptr;
-    }
+    EXPECT4(VarInt, VarFlt, VarMPInt, VarMPFlt, args[1], "real value");
+    EXPECT4(VarInt, VarFlt, VarMPInt, VarMPFlt, args[2], "virtual value");
     if(args[1]->getType() != args[2]->getType()) {
         vm.fail(loc, "the real and imaginary arguments must be of same time, found: (",
                 vm.getTypeName(args[1]), ", ", vm.getTypeName(args[1]), ")");
@@ -1453,136 +1338,136 @@ INIT_MODULE(MP)
 
     VarModule *mod = vm.getCurrModule();
 
-    mod->addNativeFn(vm, "seed", rngSeed, 1);
+    mod->addNativeFn(vm, "seed", rngSeed);
 
-    mod->addNativeFn(vm, "newIntNative", mpIntNewNative, 1);
-    mod->addNativeFn(vm, "newFltNative", mpFltNewNative, 1);
-    mod->addNativeFn(vm, "newComplexNative", mpComplexNewNative, 2);
+    mod->addNativeFn(vm, "newIntNative", mpIntNewNative);
+    mod->addNativeFn(vm, "newFltNative", mpFltNewNative);
+    mod->addNativeFn(vm, "newComplexNative", mpComplexNewNative);
 
-    mod->addNativeFn(vm, "irange", mpIntRange, 1, true);
-    mod->addNativeFn(vm, "getRandomIntNative", rngGetInt, 1);
-    mod->addNativeFn(vm, "getRandomFltNative", rngGetFlt, 1);
+    mod->addNativeFn(vm, "irange", mpIntRange);
+    mod->addNativeFn(vm, "getRandomIntNative", mpIntRngGet);
+    mod->addNativeFn(vm, "getRandomFltNative", mpFltRngGet);
 
     // Register the MPInt, MPFlt, MPComplex, and MPIntIterator types
 
-    vm.registerType<VarMPInt>(loc, "MPInt");
-    vm.registerType<VarMPFlt>(loc, "MPFlt");
-    vm.registerType<VarMPComplex>(loc, "MPComplex");
-    vm.registerType<VarMPIntIterator>(loc, "MPIntIterator");
+    vm.registerType<VarMPInt>(loc, "MPInt", "GNU Multiprecision - Big Int type.");
+    vm.registerType<VarMPFlt>(loc, "MPFlt", "GNU Multiprecision - Big Flt type.");
+    vm.registerType<VarMPComplex>(loc, "MPComplex", "GNU Multiprecision - Complex type.");
+    vm.registerType<VarMPIntIterator>(loc, "MPIntIterator", "Iterator for Big Int.");
 
     // MPInt functions
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "+", mpIntAdd, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "-", mpIntSub, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "*", mpIntMul, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "/", mpIntDiv, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "%", mpIntMod, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "<<", mpIntLShift, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, ">>", mpIntRShift, 1);
+    vm.addNativeTypeFn<VarMPInt>(loc, "+", mpIntAdd);
+    vm.addNativeTypeFn<VarMPInt>(loc, "-", mpIntSub);
+    vm.addNativeTypeFn<VarMPInt>(loc, "*", mpIntMul);
+    vm.addNativeTypeFn<VarMPInt>(loc, "/", mpIntDiv);
+    vm.addNativeTypeFn<VarMPInt>(loc, "%", mpIntMod);
+    vm.addNativeTypeFn<VarMPInt>(loc, "<<", mpIntLShift);
+    vm.addNativeTypeFn<VarMPInt>(loc, ">>", mpIntRShift);
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "+=", mpIntAssnAdd, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "-=", mpIntAssnSub, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "*=", mpIntAssnMul, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "/=", mpIntAssnDiv, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "%=", mpIntAssnMod, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "<<=", mpIntLShiftAssn, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, ">>=", mpIntRShiftAssn, 1);
+    vm.addNativeTypeFn<VarMPInt>(loc, "+=", mpIntAssnAdd);
+    vm.addNativeTypeFn<VarMPInt>(loc, "-=", mpIntAssnSub);
+    vm.addNativeTypeFn<VarMPInt>(loc, "*=", mpIntAssnMul);
+    vm.addNativeTypeFn<VarMPInt>(loc, "/=", mpIntAssnDiv);
+    vm.addNativeTypeFn<VarMPInt>(loc, "%=", mpIntAssnMod);
+    vm.addNativeTypeFn<VarMPInt>(loc, "<<=", mpIntAssnLShift);
+    vm.addNativeTypeFn<VarMPInt>(loc, ">>=", mpIntAssnRShift);
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "**", mpIntPow, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "//", mpIntRoot, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "++x", mpIntPreInc, 0);
-    vm.addNativeTypeFn<VarMPInt>(loc, "x++", mpIntPostInc, 0);
-    vm.addNativeTypeFn<VarMPInt>(loc, "--x", mpIntPreDec, 0);
-    vm.addNativeTypeFn<VarMPInt>(loc, "x--", mpIntPostDec, 0);
+    vm.addNativeTypeFn<VarMPInt>(loc, "**", mpIntPow);
+    vm.addNativeTypeFn<VarMPInt>(loc, "//", mpIntRoot);
+    vm.addNativeTypeFn<VarMPInt>(loc, "++x", mpIntPreInc);
+    vm.addNativeTypeFn<VarMPInt>(loc, "x++", mpIntPostInc);
+    vm.addNativeTypeFn<VarMPInt>(loc, "--x", mpIntPreDec);
+    vm.addNativeTypeFn<VarMPInt>(loc, "x--", mpIntPostDec);
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "u-", mpIntUSub, 0);
+    vm.addNativeTypeFn<VarMPInt>(loc, "u-", mpIntUSub);
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "<", mpIntLT, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, ">", mpIntGT, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "<=", mpIntLE, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, ">=", mpIntGE, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "==", mpIntEq, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "!=", mpIntNe, 1);
+    vm.addNativeTypeFn<VarMPInt>(loc, "<", mpIntLT);
+    vm.addNativeTypeFn<VarMPInt>(loc, ">", mpIntGT);
+    vm.addNativeTypeFn<VarMPInt>(loc, "<=", mpIntLE);
+    vm.addNativeTypeFn<VarMPInt>(loc, ">=", mpIntGE);
+    vm.addNativeTypeFn<VarMPInt>(loc, "==", mpIntEQ);
+    vm.addNativeTypeFn<VarMPInt>(loc, "!=", mpIntNE);
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "&", mpIntBAnd, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "|", mpIntBOr, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "^", mpIntBXOr, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "~", mpIntBNot, 0);
+    vm.addNativeTypeFn<VarMPInt>(loc, "&", mpIntBAnd);
+    vm.addNativeTypeFn<VarMPInt>(loc, "|", mpIntBOr);
+    vm.addNativeTypeFn<VarMPInt>(loc, "^", mpIntBXOr);
+    vm.addNativeTypeFn<VarMPInt>(loc, "~", mpIntBNot);
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "&=", mpIntBAndAssn, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "|=", mpIntBOrAssn, 1);
-    vm.addNativeTypeFn<VarMPInt>(loc, "^=", mpIntBXOrAssn, 1);
+    vm.addNativeTypeFn<VarMPInt>(loc, "&=", mpIntAssnBAnd);
+    vm.addNativeTypeFn<VarMPInt>(loc, "|=", mpIntAssnBOr);
+    vm.addNativeTypeFn<VarMPInt>(loc, "^=", mpIntAssnBXOr);
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "popcnt", mpIntPopCnt, 0);
+    vm.addNativeTypeFn<VarMPInt>(loc, "popcnt", mpIntPopCnt);
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "int", mpIntToInt, 0);
-    vm.addNativeTypeFn<VarMPInt>(loc, "str", mpIntToStr, 0);
-    vm.addNativeTypeFn<VarMPIntIterator>(loc, "next", getMPIntIteratorNext, 0);
+    vm.addNativeTypeFn<VarMPInt>(loc, "int", mpIntToInt);
+    vm.addNativeTypeFn<VarMPInt>(loc, "str", mpIntToStr);
+    vm.addNativeTypeFn<VarMPIntIterator>(loc, "next", getMPIntIteratorNext);
 
     // MPFloat functions
 
-    vm.addNativeTypeFn<VarMPFlt>(loc, "+", mpFltAdd, 1);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "-", mpFltSub, 1);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "*", mpFltMul, 1);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "/", mpFltDiv, 1);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "+", mpFltAdd);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "-", mpFltSub);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "*", mpFltMul);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "/", mpFltDiv);
 
-    vm.addNativeTypeFn<VarMPFlt>(loc, "+=", mpFltAssnAdd, 1);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "-=", mpFltAssnSub, 1);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "*=", mpFltAssnMul, 1);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "/=", mpFltAssnDiv, 1);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "+=", mpFltAssnAdd);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "-=", mpFltAssnSub);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "*=", mpFltAssnMul);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "/=", mpFltAssnDiv);
 
-    vm.addNativeTypeFn<VarMPFlt>(loc, "++x", mpFltPreInc, 0);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "x++", mpFltPostInc, 0);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "--x", mpFltPreDec, 0);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "x--", mpFltPostDec, 0);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "++x", mpFltPreInc);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "x++", mpFltPostInc);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "--x", mpFltPreDec);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "x--", mpFltPostDec);
 
-    vm.addNativeTypeFn<VarMPFlt>(loc, "u-", mpFltUSub, 0);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "u-", mpFltUSub);
 
-    vm.addNativeTypeFn<VarMPFlt>(loc, "round", mpFltRound, 0);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "round", mpFltRound);
 
-    vm.addNativeTypeFn<VarMPFlt>(loc, "**", mpFltPow, 1);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "//", mpFltRoot, 1);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "**", mpFltPow);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "//", mpFltRoot);
 
-    vm.addNativeTypeFn<VarMPFlt>(loc, "<", mpFltLT, 1);
-    vm.addNativeTypeFn<VarMPFlt>(loc, ">", mpFltGT, 1);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "<=", mpFltLE, 1);
-    vm.addNativeTypeFn<VarMPFlt>(loc, ">=", mpFltGE, 1);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "==", mpFltEQ, 1);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "!=", mpFltNE, 1);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "<", mpFltLT);
+    vm.addNativeTypeFn<VarMPFlt>(loc, ">", mpFltGT);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "<=", mpFltLE);
+    vm.addNativeTypeFn<VarMPFlt>(loc, ">=", mpFltGE);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "==", mpFltEQ);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "!=", mpFltNE);
 
-    vm.addNativeTypeFn<VarMPFlt>(loc, "flt", mpFltToFlt, 0);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "str", mpFltToStr, 0);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "flt", mpFltToFlt);
+    vm.addNativeTypeFn<VarMPFlt>(loc, "str", mpFltToStr);
 
     // MPComplex functions
 
-    vm.addNativeTypeFn<VarMPComplex>(loc, "+", mpComplexAdd, 1);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "-", mpComplexSub, 1);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "*", mpComplexMul, 1);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "/", mpComplexDiv, 1);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "+", mpComplexAdd);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "-", mpComplexSub);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "*", mpComplexMul);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "/", mpComplexDiv);
 
-    vm.addNativeTypeFn<VarMPComplex>(loc, "+=", mpComplexAddAssn, 1);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "-=", mpComplexSubAssn, 1);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "*=", mpComplexMulAssn, 1);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "/=", mpComplexDivAssn, 1);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "+=", mpComplexAssnAdd);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "-=", mpComplexAssnSub);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "*=", mpComplexAssnMul);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "/=", mpComplexAssnDiv);
 
-    vm.addNativeTypeFn<VarMPComplex>(loc, "==", mpComplexEq, 1);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "!=", mpComplexNe, 1);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "<", mpComplexLt, 1);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "<=", mpComplexLe, 1);
-    vm.addNativeTypeFn<VarMPComplex>(loc, ">", mpComplexGt, 1);
-    vm.addNativeTypeFn<VarMPComplex>(loc, ">=", mpComplexGe, 1);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "==", mpComplexEQ);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "!=", mpComplexNE);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "<", mpComplexLT);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "<=", mpComplexLE);
+    vm.addNativeTypeFn<VarMPComplex>(loc, ">", mpComplexGT);
+    vm.addNativeTypeFn<VarMPComplex>(loc, ">=", mpComplexGE);
 
-    vm.addNativeTypeFn<VarMPComplex>(loc, "++x", mpComplexPreInc, 0);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "x++", mpComplexPostInc, 0);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "--x", mpComplexPreDec, 0);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "x--", mpComplexPostDec, 0);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "++x", mpComplexPreInc);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "x++", mpComplexPostInc);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "--x", mpComplexPreDec);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "x--", mpComplexPostDec);
 
-    vm.addNativeTypeFn<VarMPComplex>(loc, "u-", mpComplexUSub, 0);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "u-", mpComplexUSub);
 
-    vm.addNativeTypeFn<VarMPComplex>(loc, "**", mpComplexPow, 1);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "**", mpComplexPow);
 
-    vm.addNativeTypeFn<VarMPComplex>(loc, "abs", mpComplexAbs, 0);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "set", mpComplexSet, 2);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "abs", mpComplexAbs);
+    vm.addNativeTypeFn<VarMPComplex>(loc, "set", mpComplexSet);
 
     return true;
 }
