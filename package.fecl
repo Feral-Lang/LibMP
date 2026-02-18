@@ -1,6 +1,6 @@
 author = 'Electrux';
 name = 'MP';
-version = '0.0.2';
+version = '0.0.3';
 description = 'GMP/MPFR/MPC library bindings for Feral.';
 source = 'https://github.com/Feral-Lang/LibMP';
 # depends = {};

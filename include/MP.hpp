@@ -3,7 +3,7 @@
 #include <gmp.h>
 #include <mpc.h>
 #include <mpfr.h>
-#include <VM/Interpreter.hpp>
+#include <VM/VM.hpp>
 
 namespace fer
 {
@@ -18,8 +18,7 @@ class VarMPInt : public Var
 {
     mpz_t val;
 
-    Var *onCopy(MemoryManager &mem, ModuleLoc loc) override;
-    void onSet(MemoryManager &mem, Var *from) override;
+    bool onSet(VirtualMachine &vm, Var *from) override;
 
 public:
     VarMPInt(ModuleLoc loc, int64_t _val);
@@ -41,8 +40,7 @@ class VarMPFlt : public Var
 {
     mpfr_t val;
 
-    Var *onCopy(MemoryManager &mem, ModuleLoc loc) override;
-    void onSet(MemoryManager &mem, Var *from) override;
+    bool onSet(VirtualMachine &vm, Var *from) override;
 
 public:
     VarMPFlt(ModuleLoc loc, double _val);
@@ -64,8 +62,7 @@ class VarMPComplex : public Var
 {
     mpc_t val;
 
-    Var *onCopy(MemoryManager &mem, ModuleLoc loc) override;
-    void onSet(MemoryManager &mem, Var *from) override;
+    bool onSet(VirtualMachine &vm, Var *from) override;
 
 public:
     VarMPComplex(ModuleLoc loc);

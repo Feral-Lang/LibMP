@@ -9,92 +9,84 @@ gmp_randstate_t rngstate;
 /////////////////////////////////////////// VarMPInt /////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-VarMPInt::VarMPInt(ModuleLoc loc, int64_t _val) : Var(loc, false, false)
-{
-    mpz_init_set_si(val, _val);
-}
-VarMPInt::VarMPInt(ModuleLoc loc, mpz_srcptr _val) : Var(loc, false, false)
-{
-    mpz_init_set(val, _val);
-}
-VarMPInt::VarMPInt(ModuleLoc loc, mpfr_srcptr _val) : Var(loc, false, false)
+VarMPInt::VarMPInt(ModuleLoc loc, int64_t _val) : Var(loc, 0) { mpz_init_set_si(val, _val); }
+VarMPInt::VarMPInt(ModuleLoc loc, mpz_srcptr _val) : Var(loc, 0) { mpz_init_set(val, _val); }
+VarMPInt::VarMPInt(ModuleLoc loc, mpfr_srcptr _val) : Var(loc, 0)
 {
     mpz_init(val);
     mpfr_get_z(val, _val, mpfr_get_default_rounding_mode());
 }
-VarMPInt::VarMPInt(ModuleLoc loc, const char *_val) : Var(loc, false, false)
+VarMPInt::VarMPInt(ModuleLoc loc, const char *_val) : Var(loc, 0)
 {
     mpz_init_set_str(val, _val, 0);
 }
 VarMPInt::~VarMPInt() { mpz_clear(val); }
-Var *VarMPInt::onCopy(MemoryManager &mem, ModuleLoc loc)
+
+bool VarMPInt::onSet(VirtualMachine &vm, Var *from)
 {
-    return Var::makeVarWithRef<VarMPInt>(mem, loc, val);
+    mpz_set(val, as<VarMPInt>(from)->getPtr());
+    return true;
 }
-void VarMPInt::onSet(MemoryManager &mem, Var *from) { mpz_set(val, as<VarMPInt>(from)->getPtr()); }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////// VarMPFlt /////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-VarMPFlt::VarMPFlt(ModuleLoc loc, double _val) : Var(loc, false, false)
+VarMPFlt::VarMPFlt(ModuleLoc loc, double _val) : Var(loc, 0)
 {
     mpfr_init_set_ld(val, _val, mpfr_get_default_rounding_mode());
 }
-VarMPFlt::VarMPFlt(ModuleLoc loc, mpfr_srcptr _val) : Var(loc, false, false)
+VarMPFlt::VarMPFlt(ModuleLoc loc, mpfr_srcptr _val) : Var(loc, 0)
 {
     mpfr_init_set(val, _val, mpfr_get_default_rounding_mode());
 }
-VarMPFlt::VarMPFlt(ModuleLoc loc, mpz_srcptr _val) : Var(loc, false, false)
+VarMPFlt::VarMPFlt(ModuleLoc loc, mpz_srcptr _val) : Var(loc, 0)
 {
     mpfr_init_set_z(val, _val, mpfr_get_default_rounding_mode());
 }
-VarMPFlt::VarMPFlt(ModuleLoc loc, const char *_val) : Var(loc, false, false)
+VarMPFlt::VarMPFlt(ModuleLoc loc, const char *_val) : Var(loc, 0)
 {
     mpfr_init_set_str(val, _val, 0, mpfr_get_default_rounding_mode());
 }
 VarMPFlt::~VarMPFlt() { mpfr_clear(val); }
-Var *VarMPFlt::onCopy(MemoryManager &mem, ModuleLoc loc)
-{
-    return Var::makeVarWithRef<VarMPFlt>(mem, loc, val);
-}
-void VarMPFlt::onSet(MemoryManager &mem, Var *from)
+
+bool VarMPFlt::onSet(VirtualMachine &vm, Var *from)
 {
     mpfr_set(val, as<VarMPFlt>(from)->getPtr(), mpfr_get_default_rounding_mode());
+    return true;
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////// VarMPComplex ///////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-VarMPComplex::VarMPComplex(ModuleLoc loc) : Var(loc, false, false) { initBase(); }
-VarMPComplex::VarMPComplex(ModuleLoc loc, int64_t real, int64_t imag) : Var(loc, false, false)
+VarMPComplex::VarMPComplex(ModuleLoc loc) : Var(loc, 0) { initBase(); }
+VarMPComplex::VarMPComplex(ModuleLoc loc, int64_t real, int64_t imag) : Var(loc, 0)
 {
     initBase();
     mpc_set_si_si(val, real, imag, mpc_get_default_rounding_mode());
 }
-VarMPComplex::VarMPComplex(ModuleLoc loc, double real, double imag) : Var(loc, false, false)
+VarMPComplex::VarMPComplex(ModuleLoc loc, double real, double imag) : Var(loc, 0)
 {
     initBase();
     mpc_set_ld_ld(val, real, imag, mpc_get_default_rounding_mode());
 }
-VarMPComplex::VarMPComplex(ModuleLoc loc, mpfr_srcptr real, mpfr_srcptr imag)
-    : Var(loc, false, false)
+VarMPComplex::VarMPComplex(ModuleLoc loc, mpfr_srcptr real, mpfr_srcptr imag) : Var(loc, 0)
 {
     initBase();
     mpc_set_fr_fr(val, real, imag, mpc_get_default_rounding_mode());
 }
-VarMPComplex::VarMPComplex(ModuleLoc loc, mpz_srcptr real, mpz_srcptr imag) : Var(loc, false, false)
+VarMPComplex::VarMPComplex(ModuleLoc loc, mpz_srcptr real, mpz_srcptr imag) : Var(loc, 0)
 {
     initBase();
     mpc_set_z_z(val, real, imag, mpc_get_default_rounding_mode());
 }
-VarMPComplex::VarMPComplex(ModuleLoc loc, mpc_srcptr _val) : Var(loc, false, false)
+VarMPComplex::VarMPComplex(ModuleLoc loc, mpc_srcptr _val) : Var(loc, 0)
 {
     initBase();
     mpc_set(val, _val, mpc_get_default_rounding_mode());
 }
-VarMPComplex::VarMPComplex(ModuleLoc loc, const char *_val) : Var(loc, false, false)
+VarMPComplex::VarMPComplex(ModuleLoc loc, const char *_val) : Var(loc, 0)
 {
     initBase();
     mpc_set_str(val, _val, 0, mpc_get_default_rounding_mode());
@@ -103,13 +95,10 @@ VarMPComplex::~VarMPComplex() { mpc_clear(val); }
 
 void VarMPComplex::initBase() { mpc_init2(val, 256); }
 
-Var *VarMPComplex::onCopy(MemoryManager &mem, ModuleLoc loc)
-{
-    return Var::makeVarWithRef<VarMPComplex>(mem, loc, val);
-}
-void VarMPComplex::onSet(MemoryManager &mem, Var *from)
+bool VarMPComplex::onSet(VirtualMachine &vm, Var *from)
 {
     mpc_set(val, as<VarMPComplex>(from)->getPtr(), mpc_get_default_rounding_mode());
+    return true;
 }
 
 mpc_rnd_t mpc_get_default_rounding_mode() { return MPC_RNDNN; }
@@ -145,6 +134,13 @@ FERAL_FUNC(mpIntNewNative, 1, false,
         return vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[1])->getPtr());
     }
     return vm.makeVar<VarMPInt>(loc, as<VarMPFlt>(args[1])->getSrcPtr());
+}
+
+FERAL_FUNC(mpIntCopy, 1, false,
+           "  var.fn() -> MPInt\n"
+           "Creates a new instance of `var` and returns it.")
+{
+    return vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
 }
 
 #define ARITHI_FUNC(fn, name)                                                                  \
@@ -603,8 +599,7 @@ public:
     inline mpz_ptr getCurr() { return curr; }
 };
 
-VarMPIntIterator::VarMPIntIterator(ModuleLoc loc)
-    : Var(loc, false, false), started(false), reversed(false)
+VarMPIntIterator::VarMPIntIterator(ModuleLoc loc) : Var(loc, 0), started(false), reversed(false)
 {
     mpz_init(begin);
     mpz_init(end);
@@ -613,7 +608,7 @@ VarMPIntIterator::VarMPIntIterator(ModuleLoc loc)
 }
 VarMPIntIterator::VarMPIntIterator(ModuleLoc loc, mpz_srcptr _begin, mpz_srcptr _end,
                                    mpz_srcptr _step)
-    : Var(loc, false, false), started(false), reversed(mpz_cmp_si(_step, 0) < 0)
+    : Var(loc, 0), started(false), reversed(mpz_cmp_si(_step, 0) < 0)
 {
     mpz_init_set(begin, _begin);
     mpz_init_set(end, _end);
@@ -740,6 +735,13 @@ FERAL_FUNC(mpFltNewNative, 1, false,
         return vm.makeVar<VarMPFlt>(loc, as<VarMPInt>(args[1])->getPtr());
     }
     return vm.makeVar<VarMPFlt>(loc, as<VarMPFlt>(args[1])->getSrcPtr());
+}
+
+FERAL_FUNC(mpFltCopy, 1, false,
+           "  var.fn() -> MPFlt\n"
+           "Creates a new instance of `var` and returns it.")
+{
+    return vm.makeVar<VarMPFlt>(loc, as<VarMPFlt>(args[0])->getSrcPtr());
 }
 
 #define ARITHF_FUNC(fn, name, namez)                                                       \
@@ -997,20 +999,25 @@ FERAL_FUNC(mpComplexNewNative, 2, false,
     VarMPComplex *res = nullptr;
 
     if(a1->is<VarInt>()) {
-        res = vm.makeVarWithRef<VarMPComplex>(loc, as<VarInt>(a1)->getVal(),
-                                              as<VarInt>(a2)->getVal());
+        res = vm.makeVar<VarMPComplex>(loc, as<VarInt>(a1)->getVal(), as<VarInt>(a2)->getVal());
     } else if(a1->is<VarFlt>()) {
-        res = vm.makeVarWithRef<VarMPComplex>(loc, as<VarFlt>(a1)->getVal(),
-                                              as<VarFlt>(a2)->getVal());
+        res = vm.makeVar<VarMPComplex>(loc, as<VarFlt>(a1)->getVal(), as<VarFlt>(a2)->getVal());
     } else if(a1->is<VarMPInt>()) {
-        res = vm.makeVarWithRef<VarMPComplex>(loc, as<VarMPInt>(a1)->getSrcPtr(),
-                                              as<VarMPInt>(a2)->getSrcPtr());
+        res = vm.makeVar<VarMPComplex>(loc, as<VarMPInt>(a1)->getSrcPtr(),
+                                       as<VarMPInt>(a2)->getSrcPtr());
     } else if(a1->is<VarMPFlt>()) {
-        res = vm.makeVarWithRef<VarMPComplex>(loc, as<VarMPFlt>(a1)->getSrcPtr(),
-                                              as<VarMPFlt>(a2)->getSrcPtr());
+        res = vm.makeVar<VarMPComplex>(loc, as<VarMPFlt>(a1)->getSrcPtr(),
+                                       as<VarMPFlt>(a2)->getSrcPtr());
     }
 
     return res;
+}
+
+FERAL_FUNC(mpComplexCopy, 1, false,
+           "  var.fn() -> MPComplex\n"
+           "Creates a new instance of `var` and returns it.")
+{
+    return vm.makeVar<VarMPComplex>(loc, as<VarMPComplex>(args[0])->getSrcPtr());
 }
 
 #define LOGICC_FUNC(fn, name, sym)                                                      \
@@ -1332,146 +1339,147 @@ FERAL_FUNC(mpComplexSet, 2, false,
     return res;
 }
 
-INIT_MODULE(MP)
+INIT_DLL(MP)
 {
     gmp_randinit_default(rngstate);
 
-    VarModule *mod = vm.getCurrModule();
+    vm.addLocal(loc, "seed", rngSeed);
 
-    mod->addNativeFn(vm, "seed", rngSeed);
+    vm.addLocal(loc, "newIntNative", mpIntNewNative);
+    vm.addLocal(loc, "newFltNative", mpFltNewNative);
+    vm.addLocal(loc, "newComplexNative", mpComplexNewNative);
 
-    mod->addNativeFn(vm, "newIntNative", mpIntNewNative);
-    mod->addNativeFn(vm, "newFltNative", mpFltNewNative);
-    mod->addNativeFn(vm, "newComplexNative", mpComplexNewNative);
-
-    mod->addNativeFn(vm, "irange", mpIntRange);
-    mod->addNativeFn(vm, "getRandomIntNative", mpIntRngGet);
-    mod->addNativeFn(vm, "getRandomFltNative", mpFltRngGet);
+    vm.addLocal(loc, "irange", mpIntRange);
+    vm.addLocal(loc, "getRandomIntNative", mpIntRngGet);
+    vm.addLocal(loc, "getRandomFltNative", mpFltRngGet);
 
     // Register the MPInt, MPFlt, MPComplex, and MPIntIterator types
 
-    vm.registerType<VarMPInt>(loc, "MPInt", "GNU Multiprecision - Big Int type.");
-    vm.registerType<VarMPFlt>(loc, "MPFlt", "GNU Multiprecision - Big Flt type.");
-    vm.registerType<VarMPComplex>(loc, "MPComplex", "GNU Multiprecision - Complex type.");
-    vm.registerType<VarMPIntIterator>(loc, "MPIntIterator", "Iterator for Big Int.");
+    vm.addLocalType<VarMPInt>(loc, "MPInt", "GNU Multiprecision - Big Int type.");
+    vm.addLocalType<VarMPFlt>(loc, "MPFlt", "GNU Multiprecision - Big Flt type.");
+    vm.addLocalType<VarMPComplex>(loc, "MPComplex", "GNU Multiprecision - Complex type.");
+    vm.addLocalType<VarMPIntIterator>(loc, "MPIntIterator", "Iterator for Big Int.");
 
     // MPInt functions
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "+", mpIntAdd);
-    vm.addNativeTypeFn<VarMPInt>(loc, "-", mpIntSub);
-    vm.addNativeTypeFn<VarMPInt>(loc, "*", mpIntMul);
-    vm.addNativeTypeFn<VarMPInt>(loc, "/", mpIntDiv);
-    vm.addNativeTypeFn<VarMPInt>(loc, "%", mpIntMod);
-    vm.addNativeTypeFn<VarMPInt>(loc, "<<", mpIntLShift);
-    vm.addNativeTypeFn<VarMPInt>(loc, ">>", mpIntRShift);
+    vm.addTypeFn<VarMPInt>(loc, "_copy_", mpIntCopy);
+    vm.addTypeFn<VarMPInt>(loc, "+", mpIntAdd);
+    vm.addTypeFn<VarMPInt>(loc, "-", mpIntSub);
+    vm.addTypeFn<VarMPInt>(loc, "*", mpIntMul);
+    vm.addTypeFn<VarMPInt>(loc, "/", mpIntDiv);
+    vm.addTypeFn<VarMPInt>(loc, "%", mpIntMod);
+    vm.addTypeFn<VarMPInt>(loc, "<<", mpIntLShift);
+    vm.addTypeFn<VarMPInt>(loc, ">>", mpIntRShift);
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "+=", mpIntAssnAdd);
-    vm.addNativeTypeFn<VarMPInt>(loc, "-=", mpIntAssnSub);
-    vm.addNativeTypeFn<VarMPInt>(loc, "*=", mpIntAssnMul);
-    vm.addNativeTypeFn<VarMPInt>(loc, "/=", mpIntAssnDiv);
-    vm.addNativeTypeFn<VarMPInt>(loc, "%=", mpIntAssnMod);
-    vm.addNativeTypeFn<VarMPInt>(loc, "<<=", mpIntAssnLShift);
-    vm.addNativeTypeFn<VarMPInt>(loc, ">>=", mpIntAssnRShift);
+    vm.addTypeFn<VarMPInt>(loc, "+=", mpIntAssnAdd);
+    vm.addTypeFn<VarMPInt>(loc, "-=", mpIntAssnSub);
+    vm.addTypeFn<VarMPInt>(loc, "*=", mpIntAssnMul);
+    vm.addTypeFn<VarMPInt>(loc, "/=", mpIntAssnDiv);
+    vm.addTypeFn<VarMPInt>(loc, "%=", mpIntAssnMod);
+    vm.addTypeFn<VarMPInt>(loc, "<<=", mpIntAssnLShift);
+    vm.addTypeFn<VarMPInt>(loc, ">>=", mpIntAssnRShift);
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "**", mpIntPow);
-    vm.addNativeTypeFn<VarMPInt>(loc, "//", mpIntRoot);
-    vm.addNativeTypeFn<VarMPInt>(loc, "++x", mpIntPreInc);
-    vm.addNativeTypeFn<VarMPInt>(loc, "x++", mpIntPostInc);
-    vm.addNativeTypeFn<VarMPInt>(loc, "--x", mpIntPreDec);
-    vm.addNativeTypeFn<VarMPInt>(loc, "x--", mpIntPostDec);
+    vm.addTypeFn<VarMPInt>(loc, "**", mpIntPow);
+    vm.addTypeFn<VarMPInt>(loc, "//", mpIntRoot);
+    vm.addTypeFn<VarMPInt>(loc, "++x", mpIntPreInc);
+    vm.addTypeFn<VarMPInt>(loc, "x++", mpIntPostInc);
+    vm.addTypeFn<VarMPInt>(loc, "--x", mpIntPreDec);
+    vm.addTypeFn<VarMPInt>(loc, "x--", mpIntPostDec);
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "u-", mpIntUSub);
+    vm.addTypeFn<VarMPInt>(loc, "u-", mpIntUSub);
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "<", mpIntLT);
-    vm.addNativeTypeFn<VarMPInt>(loc, ">", mpIntGT);
-    vm.addNativeTypeFn<VarMPInt>(loc, "<=", mpIntLE);
-    vm.addNativeTypeFn<VarMPInt>(loc, ">=", mpIntGE);
-    vm.addNativeTypeFn<VarMPInt>(loc, "==", mpIntEQ);
-    vm.addNativeTypeFn<VarMPInt>(loc, "!=", mpIntNE);
+    vm.addTypeFn<VarMPInt>(loc, "<", mpIntLT);
+    vm.addTypeFn<VarMPInt>(loc, ">", mpIntGT);
+    vm.addTypeFn<VarMPInt>(loc, "<=", mpIntLE);
+    vm.addTypeFn<VarMPInt>(loc, ">=", mpIntGE);
+    vm.addTypeFn<VarMPInt>(loc, "==", mpIntEQ);
+    vm.addTypeFn<VarMPInt>(loc, "!=", mpIntNE);
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "&", mpIntBAnd);
-    vm.addNativeTypeFn<VarMPInt>(loc, "|", mpIntBOr);
-    vm.addNativeTypeFn<VarMPInt>(loc, "^", mpIntBXOr);
-    vm.addNativeTypeFn<VarMPInt>(loc, "~", mpIntBNot);
+    vm.addTypeFn<VarMPInt>(loc, "&", mpIntBAnd);
+    vm.addTypeFn<VarMPInt>(loc, "|", mpIntBOr);
+    vm.addTypeFn<VarMPInt>(loc, "^", mpIntBXOr);
+    vm.addTypeFn<VarMPInt>(loc, "~", mpIntBNot);
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "&=", mpIntAssnBAnd);
-    vm.addNativeTypeFn<VarMPInt>(loc, "|=", mpIntAssnBOr);
-    vm.addNativeTypeFn<VarMPInt>(loc, "^=", mpIntAssnBXOr);
+    vm.addTypeFn<VarMPInt>(loc, "&=", mpIntAssnBAnd);
+    vm.addTypeFn<VarMPInt>(loc, "|=", mpIntAssnBOr);
+    vm.addTypeFn<VarMPInt>(loc, "^=", mpIntAssnBXOr);
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "popcnt", mpIntPopCnt);
+    vm.addTypeFn<VarMPInt>(loc, "popcnt", mpIntPopCnt);
 
-    vm.addNativeTypeFn<VarMPInt>(loc, "int", mpIntToInt);
-    vm.addNativeTypeFn<VarMPInt>(loc, "str", mpIntToStr);
-    vm.addNativeTypeFn<VarMPIntIterator>(loc, "next", getMPIntIteratorNext);
+    vm.addTypeFn<VarMPInt>(loc, "int", mpIntToInt);
+    vm.addTypeFn<VarMPInt>(loc, "str", mpIntToStr);
+    vm.addTypeFn<VarMPIntIterator>(loc, "next", getMPIntIteratorNext);
 
     // MPFloat functions
 
-    vm.addNativeTypeFn<VarMPFlt>(loc, "+", mpFltAdd);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "-", mpFltSub);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "*", mpFltMul);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "/", mpFltDiv);
+    vm.addTypeFn<VarMPFlt>(loc, "_copy_", mpFltCopy);
+    vm.addTypeFn<VarMPFlt>(loc, "+", mpFltAdd);
+    vm.addTypeFn<VarMPFlt>(loc, "-", mpFltSub);
+    vm.addTypeFn<VarMPFlt>(loc, "*", mpFltMul);
+    vm.addTypeFn<VarMPFlt>(loc, "/", mpFltDiv);
 
-    vm.addNativeTypeFn<VarMPFlt>(loc, "+=", mpFltAssnAdd);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "-=", mpFltAssnSub);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "*=", mpFltAssnMul);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "/=", mpFltAssnDiv);
+    vm.addTypeFn<VarMPFlt>(loc, "+=", mpFltAssnAdd);
+    vm.addTypeFn<VarMPFlt>(loc, "-=", mpFltAssnSub);
+    vm.addTypeFn<VarMPFlt>(loc, "*=", mpFltAssnMul);
+    vm.addTypeFn<VarMPFlt>(loc, "/=", mpFltAssnDiv);
 
-    vm.addNativeTypeFn<VarMPFlt>(loc, "++x", mpFltPreInc);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "x++", mpFltPostInc);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "--x", mpFltPreDec);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "x--", mpFltPostDec);
+    vm.addTypeFn<VarMPFlt>(loc, "++x", mpFltPreInc);
+    vm.addTypeFn<VarMPFlt>(loc, "x++", mpFltPostInc);
+    vm.addTypeFn<VarMPFlt>(loc, "--x", mpFltPreDec);
+    vm.addTypeFn<VarMPFlt>(loc, "x--", mpFltPostDec);
 
-    vm.addNativeTypeFn<VarMPFlt>(loc, "u-", mpFltUSub);
+    vm.addTypeFn<VarMPFlt>(loc, "u-", mpFltUSub);
 
-    vm.addNativeTypeFn<VarMPFlt>(loc, "round", mpFltRound);
+    vm.addTypeFn<VarMPFlt>(loc, "round", mpFltRound);
 
-    vm.addNativeTypeFn<VarMPFlt>(loc, "**", mpFltPow);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "//", mpFltRoot);
+    vm.addTypeFn<VarMPFlt>(loc, "**", mpFltPow);
+    vm.addTypeFn<VarMPFlt>(loc, "//", mpFltRoot);
 
-    vm.addNativeTypeFn<VarMPFlt>(loc, "<", mpFltLT);
-    vm.addNativeTypeFn<VarMPFlt>(loc, ">", mpFltGT);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "<=", mpFltLE);
-    vm.addNativeTypeFn<VarMPFlt>(loc, ">=", mpFltGE);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "==", mpFltEQ);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "!=", mpFltNE);
+    vm.addTypeFn<VarMPFlt>(loc, "<", mpFltLT);
+    vm.addTypeFn<VarMPFlt>(loc, ">", mpFltGT);
+    vm.addTypeFn<VarMPFlt>(loc, "<=", mpFltLE);
+    vm.addTypeFn<VarMPFlt>(loc, ">=", mpFltGE);
+    vm.addTypeFn<VarMPFlt>(loc, "==", mpFltEQ);
+    vm.addTypeFn<VarMPFlt>(loc, "!=", mpFltNE);
 
-    vm.addNativeTypeFn<VarMPFlt>(loc, "flt", mpFltToFlt);
-    vm.addNativeTypeFn<VarMPFlt>(loc, "str", mpFltToStr);
+    vm.addTypeFn<VarMPFlt>(loc, "flt", mpFltToFlt);
+    vm.addTypeFn<VarMPFlt>(loc, "str", mpFltToStr);
 
     // MPComplex functions
 
-    vm.addNativeTypeFn<VarMPComplex>(loc, "+", mpComplexAdd);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "-", mpComplexSub);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "*", mpComplexMul);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "/", mpComplexDiv);
+    vm.addTypeFn<VarMPComplex>(loc, "_copy_", mpComplexCopy);
+    vm.addTypeFn<VarMPComplex>(loc, "+", mpComplexAdd);
+    vm.addTypeFn<VarMPComplex>(loc, "-", mpComplexSub);
+    vm.addTypeFn<VarMPComplex>(loc, "*", mpComplexMul);
+    vm.addTypeFn<VarMPComplex>(loc, "/", mpComplexDiv);
 
-    vm.addNativeTypeFn<VarMPComplex>(loc, "+=", mpComplexAssnAdd);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "-=", mpComplexAssnSub);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "*=", mpComplexAssnMul);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "/=", mpComplexAssnDiv);
+    vm.addTypeFn<VarMPComplex>(loc, "+=", mpComplexAssnAdd);
+    vm.addTypeFn<VarMPComplex>(loc, "-=", mpComplexAssnSub);
+    vm.addTypeFn<VarMPComplex>(loc, "*=", mpComplexAssnMul);
+    vm.addTypeFn<VarMPComplex>(loc, "/=", mpComplexAssnDiv);
 
-    vm.addNativeTypeFn<VarMPComplex>(loc, "==", mpComplexEQ);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "!=", mpComplexNE);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "<", mpComplexLT);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "<=", mpComplexLE);
-    vm.addNativeTypeFn<VarMPComplex>(loc, ">", mpComplexGT);
-    vm.addNativeTypeFn<VarMPComplex>(loc, ">=", mpComplexGE);
+    vm.addTypeFn<VarMPComplex>(loc, "==", mpComplexEQ);
+    vm.addTypeFn<VarMPComplex>(loc, "!=", mpComplexNE);
+    vm.addTypeFn<VarMPComplex>(loc, "<", mpComplexLT);
+    vm.addTypeFn<VarMPComplex>(loc, "<=", mpComplexLE);
+    vm.addTypeFn<VarMPComplex>(loc, ">", mpComplexGT);
+    vm.addTypeFn<VarMPComplex>(loc, ">=", mpComplexGE);
 
-    vm.addNativeTypeFn<VarMPComplex>(loc, "++x", mpComplexPreInc);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "x++", mpComplexPostInc);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "--x", mpComplexPreDec);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "x--", mpComplexPostDec);
+    vm.addTypeFn<VarMPComplex>(loc, "++x", mpComplexPreInc);
+    vm.addTypeFn<VarMPComplex>(loc, "x++", mpComplexPostInc);
+    vm.addTypeFn<VarMPComplex>(loc, "--x", mpComplexPreDec);
+    vm.addTypeFn<VarMPComplex>(loc, "x--", mpComplexPostDec);
 
-    vm.addNativeTypeFn<VarMPComplex>(loc, "u-", mpComplexUSub);
+    vm.addTypeFn<VarMPComplex>(loc, "u-", mpComplexUSub);
 
-    vm.addNativeTypeFn<VarMPComplex>(loc, "**", mpComplexPow);
+    vm.addTypeFn<VarMPComplex>(loc, "**", mpComplexPow);
 
-    vm.addNativeTypeFn<VarMPComplex>(loc, "abs", mpComplexAbs);
-    vm.addNativeTypeFn<VarMPComplex>(loc, "set", mpComplexSet);
+    vm.addTypeFn<VarMPComplex>(loc, "abs", mpComplexAbs);
+    vm.addTypeFn<VarMPComplex>(loc, "set", mpComplexSet);
 
     return true;
 }
 
-DEINIT_MODULE(MP) { gmp_randclear(rngstate); }
+DEINIT_DLL(MP) { gmp_randclear(rngstate); }
 
 } // namespace fer
