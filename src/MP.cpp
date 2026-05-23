@@ -9,17 +9,14 @@ gmp_randstate_t rngstate;
 /////////////////////////////////////////// VarMPInt /////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-VarMPInt::VarMPInt(ModuleLoc loc, int64_t _val) : Var(loc, 0) { mpz_init_set_si(val, _val); }
-VarMPInt::VarMPInt(ModuleLoc loc, mpz_srcptr _val) : Var(loc, 0) { mpz_init_set(val, _val); }
-VarMPInt::VarMPInt(ModuleLoc loc, mpfr_srcptr _val) : Var(loc, 0)
+VarMPInt::VarMPInt(ModuleLoc loc, int64_t _val) : Var(loc) { mpz_init_set_si(val, _val); }
+VarMPInt::VarMPInt(ModuleLoc loc, mpz_srcptr _val) : Var(loc) { mpz_init_set(val, _val); }
+VarMPInt::VarMPInt(ModuleLoc loc, mpfr_srcptr _val) : Var(loc)
 {
     mpz_init(val);
     mpfr_get_z(val, _val, mpfr_get_default_rounding_mode());
 }
-VarMPInt::VarMPInt(ModuleLoc loc, const char *_val) : Var(loc, 0)
-{
-    mpz_init_set_str(val, _val, 0);
-}
+VarMPInt::VarMPInt(ModuleLoc loc, const char *_val) : Var(loc) { mpz_init_set_str(val, _val, 0); }
 VarMPInt::~VarMPInt() { mpz_clear(val); }
 
 bool VarMPInt::onSet(VirtualMachine &vm, Var *from)
@@ -32,19 +29,19 @@ bool VarMPInt::onSet(VirtualMachine &vm, Var *from)
 /////////////////////////////////////////// VarMPFlt /////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-VarMPFlt::VarMPFlt(ModuleLoc loc, double _val) : Var(loc, 0)
+VarMPFlt::VarMPFlt(ModuleLoc loc, double _val) : Var(loc)
 {
     mpfr_init_set_ld(val, _val, mpfr_get_default_rounding_mode());
 }
-VarMPFlt::VarMPFlt(ModuleLoc loc, mpfr_srcptr _val) : Var(loc, 0)
+VarMPFlt::VarMPFlt(ModuleLoc loc, mpfr_srcptr _val) : Var(loc)
 {
     mpfr_init_set(val, _val, mpfr_get_default_rounding_mode());
 }
-VarMPFlt::VarMPFlt(ModuleLoc loc, mpz_srcptr _val) : Var(loc, 0)
+VarMPFlt::VarMPFlt(ModuleLoc loc, mpz_srcptr _val) : Var(loc)
 {
     mpfr_init_set_z(val, _val, mpfr_get_default_rounding_mode());
 }
-VarMPFlt::VarMPFlt(ModuleLoc loc, const char *_val) : Var(loc, 0)
+VarMPFlt::VarMPFlt(ModuleLoc loc, const char *_val) : Var(loc)
 {
     mpfr_init_set_str(val, _val, 0, mpfr_get_default_rounding_mode());
 }
@@ -60,33 +57,33 @@ bool VarMPFlt::onSet(VirtualMachine &vm, Var *from)
 ///////////////////////////////////////// VarMPComplex ///////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-VarMPComplex::VarMPComplex(ModuleLoc loc) : Var(loc, 0) { initBase(); }
-VarMPComplex::VarMPComplex(ModuleLoc loc, int64_t real, int64_t imag) : Var(loc, 0)
+VarMPComplex::VarMPComplex(ModuleLoc loc) : Var(loc) { initBase(); }
+VarMPComplex::VarMPComplex(ModuleLoc loc, int64_t real, int64_t imag) : Var(loc)
 {
     initBase();
     mpc_set_si_si(val, real, imag, mpc_get_default_rounding_mode());
 }
-VarMPComplex::VarMPComplex(ModuleLoc loc, double real, double imag) : Var(loc, 0)
+VarMPComplex::VarMPComplex(ModuleLoc loc, double real, double imag) : Var(loc)
 {
     initBase();
     mpc_set_ld_ld(val, real, imag, mpc_get_default_rounding_mode());
 }
-VarMPComplex::VarMPComplex(ModuleLoc loc, mpfr_srcptr real, mpfr_srcptr imag) : Var(loc, 0)
+VarMPComplex::VarMPComplex(ModuleLoc loc, mpfr_srcptr real, mpfr_srcptr imag) : Var(loc)
 {
     initBase();
     mpc_set_fr_fr(val, real, imag, mpc_get_default_rounding_mode());
 }
-VarMPComplex::VarMPComplex(ModuleLoc loc, mpz_srcptr real, mpz_srcptr imag) : Var(loc, 0)
+VarMPComplex::VarMPComplex(ModuleLoc loc, mpz_srcptr real, mpz_srcptr imag) : Var(loc)
 {
     initBase();
     mpc_set_z_z(val, real, imag, mpc_get_default_rounding_mode());
 }
-VarMPComplex::VarMPComplex(ModuleLoc loc, mpc_srcptr _val) : Var(loc, 0)
+VarMPComplex::VarMPComplex(ModuleLoc loc, mpc_srcptr _val) : Var(loc)
 {
     initBase();
     mpc_set(val, _val, mpc_get_default_rounding_mode());
 }
-VarMPComplex::VarMPComplex(ModuleLoc loc, const char *_val) : Var(loc, 0)
+VarMPComplex::VarMPComplex(ModuleLoc loc, const char *_val) : Var(loc)
 {
     initBase();
     mpc_set_str(val, _val, 0, mpc_get_default_rounding_mode());
@@ -599,7 +596,7 @@ public:
     inline mpz_ptr getCurr() { return curr; }
 };
 
-VarMPIntIterator::VarMPIntIterator(ModuleLoc loc) : Var(loc, 0), started(false), reversed(false)
+VarMPIntIterator::VarMPIntIterator(ModuleLoc loc) : Var(loc), started(false), reversed(false)
 {
     mpz_init(begin);
     mpz_init(end);
@@ -608,7 +605,7 @@ VarMPIntIterator::VarMPIntIterator(ModuleLoc loc) : Var(loc, 0), started(false),
 }
 VarMPIntIterator::VarMPIntIterator(ModuleLoc loc, mpz_srcptr _begin, mpz_srcptr _end,
                                    mpz_srcptr _step)
-    : Var(loc, 0), started(false), reversed(mpz_cmp_si(_step, 0) < 0)
+    : Var(loc), started(false), reversed(mpz_cmp_si(_step, 0) < 0)
 {
     mpz_init_set(begin, _begin);
     mpz_init_set(end, _end);
@@ -701,7 +698,6 @@ FERAL_FUNC(getMPIntIteratorNext, 0, false,
     if(!it->next(_res)) { return vm.getNil(); }
     VarMPInt *res = vm.makeVar<VarMPInt>(loc, _res);
     mpz_clear(_res);
-    res->setLoadAsRef();
     return res;
 }
 
