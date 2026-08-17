@@ -1,16 +1,22 @@
 let vec = import('std/vec');
 let package = import('std/package');
 
-let pkg = package.new(
-    name = 'MP',
-    desc = 'GMP/MPFR/MPC library bindings for Feral.',
-    version = '0.1.0',
-    feral = '>=2.2.1',
-    author = vec.new('Chirag-Khandelwal <github@mail.chiragkh.me>')
-);
+let configure = fn(info) {
+    let pkg = package.new(
+        'MP',
+        desc = 'GMP/MPFR/MPC library bindings for Feral.',
+        version = '0.2.0',
+        feral = '>=2.4.1',
+        author = vec.new('Chirag-Khandelwal <github@mail.chiragkh.me>')
+    );
 
-pkg.requires('gmp', version = '>=6.3.0');
-pkg.requires('mpfr', version = '>=4.2.2');
-pkg.requires('mpc', version = '>=1.4.1');
+    pkg.requires('gmp', version = '>=6.3.0');
+    pkg.requires('mpfr', version = '>=4.2.2');
+    pkg.requires('mpc', version = '>=1.4.1');
 
-pkg.addTarget('MP', 'MP.cpp');
+    let mpTarget = pkg.addTarget('MP');
+    mpTarget.findHeaders(info.pkgRoot / 'lib', '(.*).hpp');
+    mpTarget.findSources(info.pkgRoot / 'lib', '(.*).cpp');
+
+    return feral.ok(pkg);
+};
