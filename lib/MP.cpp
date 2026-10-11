@@ -30,21 +30,13 @@ bool VarMPInt::onSet(VirtualMachine &vm, Var *from)
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
 VarMPFlt::VarMPFlt(ModuleLoc loc, double _val) : Var(loc)
-{
-    mpfr_init_set_ld(val, _val, mpfr_get_default_rounding_mode());
-}
+{ mpfr_init_set_ld(val, _val, mpfr_get_default_rounding_mode()); }
 VarMPFlt::VarMPFlt(ModuleLoc loc, mpfr_srcptr _val) : Var(loc)
-{
-    mpfr_init_set(val, _val, mpfr_get_default_rounding_mode());
-}
+{ mpfr_init_set(val, _val, mpfr_get_default_rounding_mode()); }
 VarMPFlt::VarMPFlt(ModuleLoc loc, mpz_srcptr _val) : Var(loc)
-{
-    mpfr_init_set_z(val, _val, mpfr_get_default_rounding_mode());
-}
+{ mpfr_init_set_z(val, _val, mpfr_get_default_rounding_mode()); }
 VarMPFlt::VarMPFlt(ModuleLoc loc, const char *_val) : Var(loc)
-{
-    mpfr_init_set_str(val, _val, 0, mpfr_get_default_rounding_mode());
-}
+{ mpfr_init_set_str(val, _val, 0, mpfr_get_default_rounding_mode()); }
 VarMPFlt::~VarMPFlt() { mpfr_clear(val); }
 
 bool VarMPFlt::onSet(VirtualMachine &vm, Var *from)
@@ -124,9 +116,7 @@ FERAL_FUNC(mpIntNewNative, 1, false,
 {
     EXPECT4(VarInt, VarStr, VarMPInt, VarMPFlt, args[1], "initial value");
     if(args[1]->is<VarInt>()) { return vm.makeVar<VarMPInt>(loc, as<VarInt>(args[1])->getVal()); }
-    if(args[1]->is<VarStr>()) {
-        return vm.makeVar<VarMPInt>(loc, as<VarStr>(args[1])->getVal().c_str());
-    }
+    if(args[1]->is<VarStr>()) { return vm.makeVar<VarMPInt>(loc, as<VarStr>(args[1])->cStr()); }
     if(args[1]->is<VarMPInt>()) {
         return vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[1])->getPtr());
     }
@@ -136,9 +126,7 @@ FERAL_FUNC(mpIntNewNative, 1, false,
 FERAL_FUNC(mpIntCopy, 1, false,
            "  var.fn() -> MPInt\n"
            "Creates a new instance of `var` and returns it.")
-{
-    return vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr());
-}
+{ return vm.makeVar<VarMPInt>(loc, as<VarMPInt>(args[0])->getSrcPtr()); }
 
 #define ARITHI_FUNC(fn, name)                                                                  \
     FERAL_FUNC(mpInt##fn, 1, false,                                                            \
@@ -544,16 +532,12 @@ FERAL_FUNC(mpIntRoot, 1, false,
 FERAL_FUNC(mpIntPopCnt, 0, false,
            "  var.fn() -> MPInt\n"
            "Returns the number of set bits in `var` as a new MPInt.")
-{
-    return vm.makeVar<VarMPInt>(loc, mpz_popcount(as<VarMPInt>(args[0])->getSrcPtr()));
-}
+{ return vm.makeVar<VarMPInt>(loc, mpz_popcount(as<VarMPInt>(args[0])->getSrcPtr())); }
 
 FERAL_FUNC(mpIntToInt, 0, false,
            "  var.fn() -> Int\n"
            "Converts `var` from MPInt to Int and returns the value.")
-{
-    return vm.makeVar<VarMPInt>(loc, mpz_get_si(as<VarMPInt>(args[0])->getPtr()));
-}
+{ return vm.makeVar<VarMPInt>(loc, mpz_get_si(as<VarMPInt>(args[0])->getPtr())); }
 
 FERAL_FUNC(mpIntToStr, 0, false,
            "  var.fn() -> Str\n"
@@ -724,9 +708,7 @@ FERAL_FUNC(mpFltNewNative, 1, false,
 {
     EXPECT4(VarFlt, VarStr, VarMPInt, VarMPFlt, args[1], "initial value");
     if(args[1]->is<VarFlt>()) { return vm.makeVar<VarMPFlt>(loc, as<VarFlt>(args[1])->getVal()); }
-    if(args[1]->is<VarStr>()) {
-        return vm.makeVar<VarMPFlt>(loc, as<VarStr>(args[1])->getVal().c_str());
-    }
+    if(args[1]->is<VarStr>()) { return vm.makeVar<VarMPFlt>(loc, as<VarStr>(args[1])->cStr()); }
     if(args[1]->is<VarMPInt>()) {
         return vm.makeVar<VarMPFlt>(loc, as<VarMPInt>(args[1])->getPtr());
     }
@@ -736,9 +718,7 @@ FERAL_FUNC(mpFltNewNative, 1, false,
 FERAL_FUNC(mpFltCopy, 1, false,
            "  var.fn() -> MPFlt\n"
            "Creates a new instance of `var` and returns it.")
-{
-    return vm.makeVar<VarMPFlt>(loc, as<VarMPFlt>(args[0])->getSrcPtr());
-}
+{ return vm.makeVar<VarMPFlt>(loc, as<VarMPFlt>(args[0])->getSrcPtr()); }
 
 #define ARITHF_FUNC(fn, name, namez)                                                       \
     FERAL_FUNC(mpFlt##fn, 1, false,                                                        \
@@ -928,9 +908,7 @@ FERAL_FUNC(mpFltRoot, 1, false,
 FERAL_FUNC(mpFltToFlt, 0, false,
            "  var.fn() -> Flt\n"
            "Converts `var` from MPInt to Flt and returns the value.")
-{
-    return vm.makeVar<VarFlt>(loc, mpfr_get_d(as<VarMPFlt>(args[0])->getPtr(), MPFR_RNDN));
-}
+{ return vm.makeVar<VarFlt>(loc, mpfr_get_d(as<VarMPFlt>(args[0])->getPtr(), MPFR_RNDN)); }
 
 FERAL_FUNC(mpFltToStr, 0, false,
            "  var.fn() -> Str\n"
@@ -943,19 +921,18 @@ FERAL_FUNC(mpFltToStr, 0, false,
     mpfr_free_str(_res);
     if(res->getVal().empty() || expo == 0 || expo > 25) return res;
     auto last_zero_from_end = res->getVal().find_last_of("123456789");
-    if(last_zero_from_end != String::npos) res->getVal().erase(last_zero_from_end + 1);
+    if(last_zero_from_end != String::npos) res->erase(last_zero_from_end + 1);
     if(expo > 0) {
         size_t sz = res->getVal().size();
-        while(expo > sz) { res->getVal() += '0'; }
+        while(expo > sz) { res->append('0'); }
         if(res->getVal()[0] == '-') ++expo;
-        res->getVal().insert(expo, ".");
+        res->insert(expo, ".");
     } else {
         String pre_zero(-expo, '0');
         pre_zero.insert(pre_zero.begin(), '.');
         pre_zero.insert(pre_zero.begin(), '0');
         pre_zero += res->getVal();
-        using namespace std;
-        swap(res->getVal(), pre_zero);
+        res->setVal(pre_zero);
     }
     return res;
 }
@@ -1012,9 +989,7 @@ FERAL_FUNC(mpComplexNewNative, 2, false,
 FERAL_FUNC(mpComplexCopy, 1, false,
            "  var.fn() -> MPComplex\n"
            "Creates a new instance of `var` and returns it.")
-{
-    return vm.makeVar<VarMPComplex>(loc, as<VarMPComplex>(args[0])->getSrcPtr());
-}
+{ return vm.makeVar<VarMPComplex>(loc, as<VarMPComplex>(args[0])->getSrcPtr()); }
 
 #define LOGICC_FUNC(fn, name, sym)                                                      \
     FERAL_FUNC(mpComplex##fn, 1, false,                                                 \
